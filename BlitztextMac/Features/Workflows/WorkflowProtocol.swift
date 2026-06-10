@@ -117,24 +117,37 @@ protocol Workflow: AnyObject, Observable {
 // MARK: - App Settings
 
 struct AppSettings: Codable {
+    /// Default right-Option letter bindings, keyed by WorkflowType.rawValue.
+    /// K = push-to-talk transcription; J/H/U/L for the remaining workflows.
+    static let defaultRightOptionHotkeys: [String: Int] = [
+        WorkflowType.transcription.rawValue: 40,      // K
+        WorkflowType.textImprover.rawValue: 38,       // J
+        WorkflowType.dampfAblassen.rawValue: 4,       // H
+        WorkflowType.emojiText.rawValue: 32,          // U
+        WorkflowType.localTranscription.rawValue: 37, // L
+    ]
+
     var hotkeyMode: HotkeyMode = .hold
     var hasSeenOnboarding: Bool = false
     var secureLocalModeEnabled: Bool = false
     var selectedLocalTranscriptionModelName: String = LocalTranscriptionService.recommendedFastModelName
     var hasAutoSelectedFastLocalModel: Bool = false
+    var rightOptionHotkeys: [String: Int] = AppSettings.defaultRightOptionHotkeys
 
     init(
         hotkeyMode: HotkeyMode = .hold,
         hasSeenOnboarding: Bool = false,
         secureLocalModeEnabled: Bool = false,
         selectedLocalTranscriptionModelName: String = LocalTranscriptionService.recommendedFastModelName,
-        hasAutoSelectedFastLocalModel: Bool = false
+        hasAutoSelectedFastLocalModel: Bool = false,
+        rightOptionHotkeys: [String: Int] = AppSettings.defaultRightOptionHotkeys
     ) {
         self.hotkeyMode = hotkeyMode
         self.hasSeenOnboarding = hasSeenOnboarding
         self.secureLocalModeEnabled = secureLocalModeEnabled
         self.selectedLocalTranscriptionModelName = selectedLocalTranscriptionModelName
         self.hasAutoSelectedFastLocalModel = hasAutoSelectedFastLocalModel
+        self.rightOptionHotkeys = rightOptionHotkeys
     }
 
     enum CodingKeys: String, CodingKey {
@@ -143,6 +156,7 @@ struct AppSettings: Codable {
         case secureLocalModeEnabled
         case selectedLocalTranscriptionModelName
         case hasAutoSelectedFastLocalModel
+        case rightOptionHotkeys
     }
 
     init(from decoder: Decoder) throws {
@@ -158,6 +172,10 @@ struct AppSettings: Codable {
             Bool.self,
             forKey: .hasAutoSelectedFastLocalModel
         ) ?? false
+        rightOptionHotkeys = try container.decodeIfPresent(
+            [String: Int].self,
+            forKey: .rightOptionHotkeys
+        ) ?? AppSettings.defaultRightOptionHotkeys
     }
 }
 

@@ -522,6 +522,27 @@ struct CustomizeSettingsView: View {
         LocalTranscriptionService.modelOptions()
     }
 
+    /// Binding for the right-Option letter of a workflow. -1 means "off".
+    /// Assigning a letter removes it from any other workflow to avoid
+    /// two workflows reacting to the same combo.
+    private func rightOptionKeyBinding(for type: WorkflowType) -> Binding<Int> {
+        Binding(
+            get: { appState.appSettings.rightOptionHotkeys[type.rawValue] ?? -1 },
+            set: { newKeyCode in
+                var keys = appState.appSettings.rightOptionHotkeys
+                if newKeyCode == -1 {
+                    keys.removeValue(forKey: type.rawValue)
+                } else {
+                    for (workflow, keyCode) in keys where keyCode == newKeyCode {
+                        keys.removeValue(forKey: workflow)
+                    }
+                    keys[type.rawValue] = newKeyCode
+                }
+                appState.appSettings.rightOptionHotkeys = keys
+            }
+        )
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 20) {
 
@@ -608,6 +629,37 @@ struct CustomizeSettingsView: View {
                                 .font(.system(size: 11.5, weight: .medium))
                             Spacer()
                         }
+                    }
+                }
+
+                // Right-Option letter combos
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Rechte \u{2325}-Taste + Buchstabe")
+                        .font(.system(size: 11))
+                        .foregroundStyle(.secondary)
+
+                    VStack(spacing: 6) {
+                        ForEach(WorkflowType.allCases) { type in
+                            HStack {
+                                Text(appState.displayName(for: type))
+                                    .font(.system(size: 11.5, weight: .medium))
+                                Spacer()
+                                Picker("", selection: rightOptionKeyBinding(for: type)) {
+                                    Text("Aus").tag(-1)
+                                    ForEach(RightOptionHotkeyService.letterKeyCodes, id: \.keyCode) { entry in
+                                        Text("\u{2325}R + \(entry.letter)").tag(entry.keyCode)
+                                    }
+                                }
+                                .labelsHidden()
+                                .frame(width: 110)
+                            }
+                        }
+                    }
+
+                    if !appState.accessibilityPermissionGranted {
+                        Text("Ben\u{00F6}tigt die Bedienungshilfen-Berechtigung.")
+                            .font(.system(size: 10.5))
+                            .foregroundStyle(.orange)
                     }
                 }
 

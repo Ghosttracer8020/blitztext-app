@@ -40,6 +40,7 @@ final class AppState {
         didSet {
             saveSettings()
             prewarmLocalTranscriptionIfNeeded()
+            rightOptionHotkeyService.updateBindings(appSettings.rightOptionHotkeys)
         }
     }
     var transcriptionSettings: TranscriptionSettings {
@@ -57,6 +58,7 @@ final class AppState {
 
     // Hotkeys
     let hotkeyService = HotkeyService()
+    let rightOptionHotkeyService = RightOptionHotkeyService()
 
     // Computed
     var isConfigured: Bool {
@@ -79,6 +81,7 @@ final class AppState {
         refreshAccessibilityPermission()
         autoSelectFastLocalModelIfNeeded()
         prewarmLocalTranscriptionIfNeeded()
+        rightOptionHotkeyService.updateBindings(appSettings.rightOptionHotkeys)
     }
 
     // MARK: - Custom Display Names
@@ -409,6 +412,11 @@ final class AppState {
 
     func refreshAccessibilityPermission() {
         accessibilityPermissionGranted = AccessibilityPermissionService.currentStatus()
+        // The event tap for right-Option hotkeys can only be created once
+        // Accessibility permission exists; retry whenever the status refreshes.
+        if accessibilityPermissionGranted {
+            rightOptionHotkeyService.startIfNeeded()
+        }
     }
 
     func requestAccessibilityPermission() {

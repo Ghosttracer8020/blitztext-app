@@ -19,6 +19,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
     let appState = AppState()
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        terminateIfAnotherInstanceIsRunning()
+
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
 
         if let button = statusItem.button {
@@ -39,10 +41,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
         appState.hotkeyService.onHotkeyEvent = { [weak self] event in
             self?.handleHotkeyEvent(event)
         }
+        appState.rightOptionHotkeyService.onHotkeyEvent = { [weak self] event in
+            self?.handleHotkeyEvent(event)
+        }
         appState.onMenuBarStatusChange = { [weak self] status in
             self?.menuBarStatusController.update(to: status)
         }
         appState.hotkeyService.start()
+        appState.rightOptionHotkeyService.startIfNeeded()
 
         // Listen for popover dismiss requests (from auto-paste)
         NotificationCenter.default.addObserver(
@@ -60,6 +66,29 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
     @objc private func handleDismissPopover() {
         appState.isPopoverShown = false
         popover.performClose(nil)
+    }
+
+    /// Two running copies (e.g. one from the repo folder, one from
+    /// /Applications) would each react to hotkeys and paste the transcript
+    /// twice. Keep the instance that started first.
+    private func terminateIfAnotherInstanceIsRunning() {
+        guard let bundleID = Bundle.main.bundleIdentifier else { return }
+
+        let ownPid = NSRunningApplication.current.processIdentifier
+        let otherInstances = NSRunningApplication
+            .runningApplications(withBundleIdentifier: bundleID)
+            .filter { $0.processIdentifier != ownPid }
+
+        guard !otherInstances.isEmpty else { return }
+
+        let alert = NSAlert()
+        alert.messageText = "Blitztext läuft bereits"
+        alert.informativeText = "Eine andere Blitztext-Instanz ist schon aktiv. Diese Kopie wird beendet, damit Texte nicht doppelt eingefügt werden."
+        alert.alertStyle = .informational
+        alert.addButton(withTitle: "OK")
+        alert.runModal()
+
+        NSApp.terminate(nil)
     }
 
     private func handleHotkeyEvent(_ event: HotkeyEvent) {
