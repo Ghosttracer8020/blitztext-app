@@ -16,6 +16,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
     private var statusItem: NSStatusItem!
     private var popover: NSPopover!
     private let menuBarStatusController = MenuBarStatusController()
+    private lazy var pillWindowController = PillWindowController(appState: appState)
     let appState = AppState()
 
     func applicationDidFinishLaunching(_ notification: Notification) {
@@ -47,6 +48,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
         }
         appState.onMenuBarStatusChange = { [weak self] status in
             self?.menuBarStatusController.update(to: status)
+            self?.pillWindowController.update(for: status)
         }
         appState.hotkeyService.start()
         appState.customHotkeyService.startIfNeeded()
