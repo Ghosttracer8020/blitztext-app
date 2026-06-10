@@ -81,6 +81,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
 
         guard !otherInstances.isEmpty else { return }
 
+        NSApp.activate(ignoringOtherApps: true)
         let alert = NSAlert()
         alert.messageText = "Blitztext läuft bereits"
         alert.informativeText = "Eine andere Blitztext-Instanz ist schon aktiv. Diese Kopie wird beendet, damit Texte nicht doppelt eingefügt werden."

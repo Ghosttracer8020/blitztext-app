@@ -34,6 +34,7 @@ final class AppState {
     private var lastPopoverPasteTarget: PasteTarget?
     private var menuBarStatusResetTask: Task<Void, Never>?
     private var workflowCleanupTask: Task<Void, Never>?
+    private var accessibilityPermissionPollTask: Task<Void, Never>?
 
     // Persisted settings
     var appSettings: AppSettings {
@@ -313,6 +314,7 @@ final class AppState {
             menuBarStatus = .error(activeWorkflow?.type)
             return
         }
+        rightOptionHotkeyService.startIfNeeded()
 
         attemptPasteTrusted(
             target: target,
@@ -422,12 +424,21 @@ final class AppState {
     func requestAccessibilityPermission() {
         accessibilityPermissionGranted = AccessibilityPermissionService.requestPermissionPrompt()
         AccessibilityPermissionService.openSystemSettings()
+        startAccessibilityPermissionPolling()
+    }
 
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) { [weak self] in
-            self?.refreshAccessibilityPermission()
-        }
-        DispatchQueue.main.asyncAfter(deadline: .now() + 3.0) { [weak self] in
-            self?.refreshAccessibilityPermission()
+    /// Granting the permission in System Settings easily takes longer than a
+    /// few seconds; poll until granted (which also brings up the right-Option
+    /// event tap) or give up after ~90s.
+    private func startAccessibilityPermissionPolling() {
+        accessibilityPermissionPollTask?.cancel()
+        accessibilityPermissionPollTask = Task { @MainActor [weak self] in
+            for _ in 0..<60 {
+                try? await Task.sleep(for: .seconds(1.5))
+                guard let self, !Task.isCancelled else { return }
+                self.refreshAccessibilityPermission()
+                if self.accessibilityPermissionGranted { return }
+            }
         }
     }
 
