@@ -1,16 +1,21 @@
 import Foundation
 import CoreGraphics
 
-/// A user-recorded hotkey: a single non-modifier key plus optional modifiers.
-/// Option keeps its left/right distinction so e.g. a right-Option combo does
-/// not block the left Option key's character layer (⌥L = @ on German layouts).
+/// A user-recorded hotkey: a single non-modifier key plus optional modifiers,
+/// or a modifier-only shortcut (keyCode == nil, e.g. right-Option alone as
+/// push-to-talk). Option keeps its left/right distinction so e.g. a
+/// right-Option combo does not block the left Option key's character layer
+/// (⌥L = @ on German layouts).
 struct KeyboardShortcut: Codable, Equatable {
-    var keyCode: Int
+    /// nil = modifier-only shortcut (fires on the modifier state alone)
+    var keyCode: Int?
     /// Generic modifier bits (subset of CGEventFlags: ⌘⇧⌥⌃ + fn)
     var modifiers: UInt64
     /// Device-specific Option-side bits captured at record time
     /// (0x20 = left Option, 0x40 = right Option, 0 = no side requirement)
     var optionSideBits: UInt64
+
+    var isModifierOnly: Bool { keyCode == nil }
 
     static let commandMask: UInt64 = 0x10_0000  // CGEventFlags.maskCommand
     static let shiftMask: UInt64 = 0x2_0000     // .maskShift
@@ -35,10 +40,10 @@ struct KeyboardShortcut: Codable, Equatable {
         115, 116, 117, 119, 121,                                // nav block
     ]
 
-    init(keyCode: Int, rawModifierFlags: UInt64) {
+    init(keyCode: Int?, rawModifierFlags: UInt64) {
         self.keyCode = keyCode
         var generic = rawModifierFlags & Self.genericMask
-        if Self.impliedFnKeyCodes.contains(keyCode) {
+        if let keyCode, Self.impliedFnKeyCodes.contains(keyCode) {
             generic &= ~Self.fnMask
         }
         self.modifiers = generic
@@ -49,12 +54,20 @@ struct KeyboardShortcut: Codable, Equatable {
 
     /// Exact match for a keyDown: same key, exactly the recorded modifier set.
     func matches(keyCode: Int64, flags: CGEventFlags) -> Bool {
-        guard keyCode == Int64(self.keyCode) else { return false }
+        guard let ownKeyCode = self.keyCode, keyCode == Int64(ownKeyCode) else { return false }
         var relevantMask = Self.genericMask
-        if Self.impliedFnKeyCodes.contains(self.keyCode) {
+        if Self.impliedFnKeyCodes.contains(ownKeyCode) {
             relevantMask &= ~Self.fnMask
         }
         guard flags.rawValue & relevantMask == modifiers else { return false }
+        return optionSideSatisfied(by: flags)
+    }
+
+    /// Exact match for a modifier-only shortcut against the current flag
+    /// state: exactly the recorded modifier set, nothing more.
+    func matchesModifierState(_ flags: CGEventFlags) -> Bool {
+        guard isModifierOnly, modifiers != 0 else { return false }
+        guard flags.rawValue & Self.genericMask == modifiers else { return false }
         return optionSideSatisfied(by: flags)
     }
 
@@ -87,7 +100,9 @@ struct KeyboardShortcut: Codable, Equatable {
         }
         if modifiers & Self.shiftMask != 0 { parts.append("\u{21E7}") }
         if modifiers & Self.commandMask != 0 { parts.append("\u{2318}") }
-        parts.append(Self.keyName(for: keyCode))
+        if let keyCode {
+            parts.append(Self.keyName(for: keyCode))
+        }
         return parts.joined(separator: " ")
     }
 

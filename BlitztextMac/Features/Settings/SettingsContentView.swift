@@ -628,7 +628,7 @@ struct CustomizeSettingsView: View {
                         }
                     }
 
-                    Text("Klicken, dann Taste oder Kombination dr\u{00FC}cken. Esc bricht ab, R\u{00FC}ckschritt l\u{00F6}scht.")
+                    Text("Klicken, dann Taste oder Kombination dr\u{00FC}cken \u{2014} auch nur Modifier (z. B. rechte \u{2325} allein, beim Loslassen \u{00FC}bernommen). Esc bricht ab, R\u{00FC}ckschritt l\u{00F6}scht.")
                         .font(.system(size: 10.5))
                         .foregroundStyle(.secondary)
 
@@ -834,6 +834,10 @@ private struct ShortcutRecorderView: View {
     let type: WorkflowType
     @Bindable var appState: AppState
     @State private var keyMonitor: Any?
+    @State private var timeoutTask: Task<Void, Never>?
+    /// Last non-empty modifier state seen while recording; committed as a
+    /// modifier-only shortcut when all modifiers are released without a key.
+    @State private var pendingModifierFlags: UInt64 = 0
 
     /// System combos that must never be bound: swallowing them would break
     /// copy/paste/quit systemwide — including this app's own auto-paste ⌘V.
@@ -893,12 +897,23 @@ private struct ShortcutRecorderView: View {
     private func beginRecording() {
         guard keyMonitor == nil, appState.recordingShortcutFor == nil else { return }
         appState.beginShortcutCapture(for: type)
+        pendingModifierFlags = 0
 
-        keyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
-            switch event.keyCode {
-            case 53: // Escape: cancel
+        keyMonitor = NSEvent.addLocalMonitorForEvents(matching: [.keyDown, .flagsChanged]) { event in
+            if event.type == .flagsChanged {
+                handleRecordingFlagsChanged(event)
+                return nil
+            }
+
+            let plainPress = event.modifierFlags
+                .intersection(.deviceIndependentFlagsMask)
+                .subtracting(.function)
+                .isEmpty
+
+            switch (event.keyCode, plainPress) {
+            case (53, true): // Escape without modifiers: cancel
                 cancelRecording()
-            case 51: // Delete: clear binding
+            case (51, true): // Delete without modifiers: clear binding
                 appState.setShortcut(nil, for: type)
                 cancelRecording()
             default:
@@ -909,19 +924,49 @@ private struct ShortcutRecorderView: View {
                 if !Self.blockedShortcuts.contains(shortcut) {
                     appState.setShortcut(shortcut, for: type)
                 }
-                cancelRecording()
+                // The recorded key may still be physically held: keep
+                // swallowing it so the fresh binding does not fire instantly.
+                finishRecording(drainingKeyCode: Int(event.keyCode))
             }
             return nil
+        }
+
+        // Abandoned recordings (focus lost, never pressed a key) would leave
+        // every hotkey suspended; auto-cancel after a generous timeout.
+        timeoutTask = Task { @MainActor in
+            try? await Task.sleep(for: .seconds(20))
+            guard !Task.isCancelled else { return }
+            cancelRecording()
+        }
+    }
+
+    private func handleRecordingFlagsChanged(_ event: NSEvent) {
+        let raw = UInt64(event.modifierFlags.rawValue)
+        if raw & KeyboardShortcut.genericMask != 0 {
+            pendingModifierFlags = raw
+        } else if pendingModifierFlags != 0 {
+            // All modifiers released without a key: modifier-only shortcut
+            // (e.g. right-Option alone as push-to-talk).
+            let shortcut = KeyboardShortcut(keyCode: nil, rawModifierFlags: pendingModifierFlags)
+            appState.setShortcut(shortcut, for: type)
+            finishRecording(drainingKeyCode: nil)
         }
     }
 
     private func cancelRecording() {
+        finishRecording(drainingKeyCode: nil)
+    }
+
+    private func finishRecording(drainingKeyCode: Int?) {
+        timeoutTask?.cancel()
+        timeoutTask = nil
+        pendingModifierFlags = 0
         if let keyMonitor {
             NSEvent.removeMonitor(keyMonitor)
         }
         keyMonitor = nil
         guard isRecording else { return }
-        appState.endShortcutCapture()
+        appState.endShortcutCapture(drainingKeyCode: drainingKeyCode)
     }
 }
 

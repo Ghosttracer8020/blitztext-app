@@ -31,8 +31,11 @@ final class CustomHotkeyService {
 
     /// While the settings UI records a new shortcut, the tap passes all
     /// events through so the recorded combo does not trigger a workflow.
-    func setSuspended(_ suspended: Bool) {
-        state.setSuspended(suspended)
+    /// On resume, `drainingKeyCode` (the just-recorded key, possibly still
+    /// physically held) is swallowed until its keyUp so the fresh binding
+    /// does not fire immediately via autorepeat.
+    func setSuspended(_ suspended: Bool, drainingKeyCode: Int? = nil) {
+        state.setSuspended(suspended, drainingKeyCode: drainingKeyCode.map(Int64.init))
     }
 
     /// Creates the event tap. Safe to call repeatedly; retries are cheap when
@@ -137,7 +140,8 @@ final class CustomHotkeyService {
 /// updates arrive from the main thread.
 final class CustomHotkeyTapState: @unchecked Sendable {
     private struct ActiveCombo {
-        let keyCode: Int64
+        /// nil for modifier-only shortcuts
+        let keyCode: Int64?
         let shortcut: KeyboardShortcut
         let workflow: WorkflowType
     }
@@ -168,12 +172,12 @@ final class CustomHotkeyTapState: @unchecked Sendable {
         lock.withLock { bindings = newBindings }
     }
 
-    func setSuspended(_ value: Bool) {
+    func setSuspended(_ value: Bool, drainingKeyCode: Int64? = nil) {
         lock.withLock {
             suspended = value
             // Do not keep half-finished combo state across a suspension.
             active = nil
-            drainKeyCode = nil
+            drainKeyCode = value ? nil : drainingKeyCode
         }
     }
 
@@ -193,6 +197,7 @@ final class CustomHotkeyTapState: @unchecked Sendable {
 
         var emit: HotkeyEvent?
         var swallow = false
+        var reenableTap: CFMachPort?
 
         lock.lock()
         let sink = _onEvent
@@ -212,9 +217,7 @@ final class CustomHotkeyTapState: @unchecked Sendable {
             }
             active = nil
             drainKeyCode = nil
-            if let port = _tapPort {
-                CGEvent.tapEnable(tap: port, enable: true)
-            }
+            reenableTap = _tapPort
 
         case .keyDown:
             let keyCode = event.getIntegerValueField(.keyboardEventKeycode)
@@ -238,7 +241,7 @@ final class CustomHotkeyTapState: @unchecked Sendable {
 
         case .keyUp:
             let keyCode = event.getIntegerValueField(.keyboardEventKeycode)
-            if let combo = active, keyCode == combo.keyCode {
+            if let combo = active, let comboKey = combo.keyCode, keyCode == comboKey {
                 active = nil
                 emit = .up(combo.workflow)
                 swallow = true
@@ -248,12 +251,24 @@ final class CustomHotkeyTapState: @unchecked Sendable {
             }
 
         case .flagsChanged:
-            // Releasing a required modifier while the key is still held ends
-            // the combo; the key keeps draining until its physical keyUp.
-            if let combo = active, !combo.shortcut.requiredModifiersStillHeld(event.flags) {
-                active = nil
-                drainKeyCode = combo.keyCode
-                emit = .up(combo.workflow)
+            if let combo = active {
+                // Releasing a required modifier ends the combo; a still-held
+                // key keeps draining until its physical keyUp.
+                if !combo.shortcut.requiredModifiersStillHeld(event.flags) {
+                    active = nil
+                    drainKeyCode = combo.keyCode
+                    emit = .up(combo.workflow)
+                }
+            } else if drainKeyCode == nil,
+                      let match = bindings.first(where: { $0.shortcut.matchesModifierState(event.flags) }) {
+                // Modifier-only shortcut (e.g. right-Option alone as
+                // push-to-talk): fires on the exact modifier state.
+                active = ActiveCombo(
+                    keyCode: nil,
+                    shortcut: match.shortcut,
+                    workflow: match.workflow
+                )
+                emit = .down(match.workflow)
             }
 
         default:
@@ -261,6 +276,10 @@ final class CustomHotkeyTapState: @unchecked Sendable {
         }
 
         lock.unlock()
+
+        if let reenableTap {
+            CGEvent.tapEnable(tap: reenableTap, enable: true)
+        }
 
         if let emit, let sink {
             sink(emit)
