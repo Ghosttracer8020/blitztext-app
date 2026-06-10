@@ -2,20 +2,26 @@ import Foundation
 import CoreGraphics
 
 /// A user-recorded hotkey: a single non-modifier key plus optional modifiers,
-/// or a modifier-only shortcut (keyCode == nil, e.g. right-Option alone as
-/// push-to-talk). Option keeps its left/right distinction so e.g. a
+/// or a modifier-only shortcut (keyCode == nil) — a single modifier (right
+/// Option alone as push-to-talk) or a modifier chord (right Option + right
+/// Command). Every modifier keeps its left/right distinction so e.g. a
 /// right-Option combo does not block the left Option key's character layer
 /// (⌥L = @ on German layouts).
-struct KeyboardShortcut: Codable, Equatable {
+struct KeyboardShortcut: Equatable {
     /// nil = modifier-only shortcut (fires on the modifier state alone)
     var keyCode: Int?
     /// Generic modifier bits (subset of CGEventFlags: ⌘⇧⌥⌃ + fn)
     var modifiers: UInt64
-    /// Device-specific Option-side bits captured at record time
-    /// (0x20 = left Option, 0x40 = right Option, 0 = no side requirement)
-    var optionSideBits: UInt64
+    /// Device-specific left/right bits captured at record time for the
+    /// modifiers present in `modifiers`. Exactly one recorded side of a
+    /// modifier means that physical key is required; none or both = any side.
+    var deviceSideBits: UInt64
 
     var isModifierOnly: Bool { keyCode == nil }
+
+    /// Marker on synthetic CGEvents posted by this app (e.g. the auto-paste
+    /// Cmd+V) so the hotkey tap never matches or swallows its own events.
+    static let syntheticEventTag: Int64 = 0x424C_5A54 // "BLZT"
 
     static let commandMask: UInt64 = 0x10_0000  // CGEventFlags.maskCommand
     static let shiftMask: UInt64 = 0x2_0000     // .maskShift
@@ -24,12 +30,14 @@ struct KeyboardShortcut: Codable, Equatable {
     static let fnMask: UInt64 = 0x80_0000       // .maskSecondaryFn
     static let genericMask: UInt64 =
         commandMask | shiftMask | optionMask | controlMask | fnMask
-    static let leftOptionBit: UInt64 = 0x20     // NX_DEVICELALTKEYMASK
-    static let rightOptionBit: UInt64 = 0x40    // NX_DEVICERALTKEYMASK
 
-    /// Marker on synthetic CGEvents posted by this app (e.g. the auto-paste
-    /// Cmd+V) so the hotkey tap never matches or swallows its own events.
-    static let syntheticEventTag: Int64 = 0x424C_5A54 // "BLZT"
+    /// NX device-dependent bits: left/right physical key per modifier.
+    static let sidePairs: [(generic: UInt64, left: UInt64, right: UInt64, symbol: String)] = [
+        (controlMask, 0x0001, 0x2000, "\u{2303}"),
+        (shiftMask, 0x0002, 0x0004, "\u{21E7}"),
+        (optionMask, 0x0020, 0x0040, "\u{2325}"),
+        (commandMask, 0x0008, 0x0010, "\u{2318}"),
+    ]
 
     /// Keys for which macOS sets the fn flag implicitly (F-keys, arrows,
     /// navigation block). The flag is unreliable across keyboards there, so
@@ -47,9 +55,11 @@ struct KeyboardShortcut: Codable, Equatable {
             generic &= ~Self.fnMask
         }
         self.modifiers = generic
-        self.optionSideBits = (rawModifierFlags & Self.optionMask != 0)
-            ? rawModifierFlags & (Self.leftOptionBit | Self.rightOptionBit)
-            : 0
+        var sides: UInt64 = 0
+        for pair in Self.sidePairs where generic & pair.generic != 0 {
+            sides |= rawModifierFlags & (pair.left | pair.right)
+        }
+        self.deviceSideBits = sides
     }
 
     /// Exact match for a keyDown: same key, exactly the recorded modifier set.
@@ -60,7 +70,7 @@ struct KeyboardShortcut: Codable, Equatable {
             relevantMask &= ~Self.fnMask
         }
         guard flags.rawValue & relevantMask == modifiers else { return false }
-        return optionSideSatisfied(by: flags)
+        return sidesSatisfied(by: flags)
     }
 
     /// Exact match for a modifier-only shortcut against the current flag
@@ -68,21 +78,26 @@ struct KeyboardShortcut: Codable, Equatable {
     func matchesModifierState(_ flags: CGEventFlags) -> Bool {
         guard isModifierOnly, modifiers != 0 else { return false }
         guard flags.rawValue & Self.genericMask == modifiers else { return false }
-        return optionSideSatisfied(by: flags)
+        return sidesSatisfied(by: flags)
     }
 
     /// Whether the recorded modifiers are still held (combo-end detection).
-    /// A shortcut without modifiers never ends via flagsChanged.
+    /// A shortcut without modifiers never ends via flagsChanged. Additional
+    /// modifiers joining do NOT end the combo: an accidental Shift brush
+    /// mid-dictation must not stop a hold-mode recording.
     func requiredModifiersStillHeld(_ flags: CGEventFlags) -> Bool {
         guard modifiers != 0 else { return true }
         guard flags.rawValue & modifiers == modifiers else { return false }
-        return optionSideSatisfied(by: flags)
+        return sidesSatisfied(by: flags)
     }
 
-    private func optionSideSatisfied(by flags: CGEventFlags) -> Bool {
-        // Exactly one recorded side -> that physical key must be down
-        if optionSideBits == Self.leftOptionBit || optionSideBits == Self.rightOptionBit {
-            return flags.rawValue & optionSideBits != 0
+    private func sidesSatisfied(by flags: CGEventFlags) -> Bool {
+        for pair in Self.sidePairs where modifiers & pair.generic != 0 {
+            let recorded = deviceSideBits & (pair.left | pair.right)
+            // Exactly one recorded side -> that physical key must be down
+            if recorded == pair.left || recorded == pair.right {
+                if flags.rawValue & recorded == 0 { return false }
+            }
         }
         return true
     }
@@ -90,16 +105,14 @@ struct KeyboardShortcut: Codable, Equatable {
     var displayString: String {
         var parts: [String] = []
         if modifiers & Self.fnMask != 0 { parts.append("fn") }
-        if modifiers & Self.controlMask != 0 { parts.append("\u{2303}") }
-        if modifiers & Self.optionMask != 0 {
-            switch optionSideBits {
-            case Self.rightOptionBit: parts.append("\u{2325}R")
-            case Self.leftOptionBit: parts.append("\u{2325}L")
-            default: parts.append("\u{2325}")
+        for pair in Self.sidePairs where modifiers & pair.generic != 0 {
+            let recorded = deviceSideBits & (pair.left | pair.right)
+            switch recorded {
+            case pair.left: parts.append("\(pair.symbol)L")
+            case pair.right: parts.append("\(pair.symbol)R")
+            default: parts.append(pair.symbol)
             }
         }
-        if modifiers & Self.shiftMask != 0 { parts.append("\u{21E7}") }
-        if modifiers & Self.commandMask != 0 { parts.append("\u{2318}") }
         if let keyCode {
             parts.append(Self.keyName(for: keyCode))
         }
@@ -128,4 +141,30 @@ struct KeyboardShortcut: Codable, Equatable {
         47: ".", 43: ",", 44: "/", 41: ";", 39: "'", 27: "-", 24: "=",
         33: "[", 30: "]", 42: "\\", 50: "`", 10: "\u{00A7}",
     ]
+}
+
+extension KeyboardShortcut: Codable {
+    private enum CodingKeys: String, CodingKey {
+        case keyCode
+        case modifiers
+        case deviceSideBits
+        /// Legacy key from the Option-only side-distinction iteration.
+        case optionSideBits
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        keyCode = try container.decodeIfPresent(Int.self, forKey: .keyCode)
+        modifiers = try container.decodeIfPresent(UInt64.self, forKey: .modifiers) ?? 0
+        deviceSideBits = try container.decodeIfPresent(UInt64.self, forKey: .deviceSideBits)
+            ?? container.decodeIfPresent(UInt64.self, forKey: .optionSideBits)
+            ?? 0
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encodeIfPresent(keyCode, forKey: .keyCode)
+        try container.encode(modifiers, forKey: .modifiers)
+        try container.encode(deviceSideBits, forKey: .deviceSideBits)
+    }
 }

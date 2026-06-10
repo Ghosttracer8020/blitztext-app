@@ -100,6 +100,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
             handleHotkeyUp(type)
         case .cancel:
             handleHotkeyCancel()
+        case .switchTo(let type):
+            // A held modifier-only combo grew into a more specific binding:
+            // discard the in-flight recording (no transcription, no paste)
+            // and start the requested workflow seamlessly.
+            appState.resetCurrentWorkflow()
+            handleHotkeyDown(type)
         }
     }
 

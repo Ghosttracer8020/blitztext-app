@@ -108,22 +108,16 @@ final class AppState {
         customHotkeyService.setSuspended(false, drainingKeyCode: drainingKeyCode)
     }
 
-    /// Assigns or clears (nil) a workflow's shortcut. Conflicting bindings on
-    /// other workflows are removed ("last recording wins"): same key+modifier
-    /// set, and modifier-prefix conflicts with modifier-only shortcuts — a
-    /// modifier-only binding fires on the bare modifier state, which makes
-    /// combos with exactly those modifiers unreachable (and vice versa).
+    /// Assigns or clears (nil) a workflow's shortcut. An identical binding on
+    /// another workflow is taken over ("last recording wins"). Prefix overlaps
+    /// are allowed: a modifier-only binding (e.g. right-Option alone) coexists
+    /// with more specific combos (right-Option+right-Command, right-Option+J)
+    /// via switch-over at runtime.
     func setShortcut(_ shortcut: KeyboardShortcut?, for type: WorkflowType) {
         var shortcuts = appSettings.customShortcuts
         if let shortcut {
-            for (workflow, existing) in shortcuts {
-                let sameKeyAndModifiers = existing.keyCode == shortcut.keyCode
-                    && existing.modifiers == shortcut.modifiers
-                let modifierPrefixConflict = (shortcut.isModifierOnly || existing.isModifierOnly)
-                    && existing.modifiers == shortcut.modifiers
-                if sameKeyAndModifiers || modifierPrefixConflict {
-                    shortcuts.removeValue(forKey: workflow)
-                }
+            for (workflow, existing) in shortcuts where existing == shortcut {
+                shortcuts.removeValue(forKey: workflow)
             }
             shortcuts[type.rawValue] = shortcut
         } else {

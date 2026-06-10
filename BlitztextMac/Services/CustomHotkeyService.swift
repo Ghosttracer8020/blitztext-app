@@ -233,9 +233,19 @@ final class CustomHotkeyTapState: @unchecked Sendable {
                         workflow: match.workflow
                     )
                     emit = .down(match.workflow)
+                } else if let combo = active, combo.shortcut.isModifierOnly {
+                    // Upgrade: a keyed binding fired while its modifier-only
+                    // prefix is active (e.g. rAlt dictation -> rAlt+J combo).
+                    // The in-flight recording is discarded, not transcribed.
+                    active = ActiveCombo(
+                        keyCode: keyCode,
+                        shortcut: match.shortcut,
+                        workflow: match.workflow
+                    )
+                    emit = .switchTo(match.workflow)
                 }
-                // A second bound combo during an active one is swallowed so
-                // no stray character reaches the focused app.
+                // A second bound combo during an active keyed one is
+                // swallowed so no stray character reaches the focused app.
                 swallow = true
             }
 
@@ -252,9 +262,24 @@ final class CustomHotkeyTapState: @unchecked Sendable {
 
         case .flagsChanged:
             if let combo = active {
-                // Releasing a required modifier ends the combo; a still-held
-                // key keeps draining until its physical keyUp.
-                if !combo.shortcut.requiredModifiersStillHeld(event.flags) {
+                if combo.shortcut.isModifierOnly,
+                   let upgrade = bindings.first(where: {
+                       $0.shortcut.isModifierOnly
+                           && $0.shortcut != combo.shortcut
+                           && $0.shortcut.matchesModifierState(event.flags)
+                   }) {
+                    // Upgrade: the held modifier set grew into a more
+                    // specific modifier-only binding (e.g. rAlt dictation
+                    // -> rAlt+rCmd). The in-flight recording is discarded.
+                    active = ActiveCombo(
+                        keyCode: nil,
+                        shortcut: upgrade.shortcut,
+                        workflow: upgrade.workflow
+                    )
+                    emit = .switchTo(upgrade.workflow)
+                } else if !combo.shortcut.requiredModifiersStillHeld(event.flags) {
+                    // Releasing a required modifier ends the combo; a
+                    // still-held key keeps draining until its physical keyUp.
                     active = nil
                     drainKeyCode = combo.keyCode
                     emit = .up(combo.workflow)

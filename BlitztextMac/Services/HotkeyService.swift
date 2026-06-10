@@ -23,9 +23,13 @@ enum HotkeyMode: String, Codable, CaseIterable, Identifiable {
 }
 
 enum HotkeyEvent {
-    case down(WorkflowType)  // Keys pressed
-    case up(WorkflowType)    // Keys released (for hold mode)
-    case cancel              // Escape pressed
+    case down(WorkflowType)     // Keys pressed
+    case up(WorkflowType)       // Keys released (for hold mode)
+    case cancel                 // Escape pressed
+    /// A held modifier-only combo grew into a more specific binding
+    /// (e.g. right-Option dictation -> right-Option+right-Command combo):
+    /// discard the in-flight recording and start the new workflow.
+    case switchTo(WorkflowType)
 }
 
 @Observable

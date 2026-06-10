@@ -942,11 +942,16 @@ private struct ShortcutRecorderView: View {
 
     private func handleRecordingFlagsChanged(_ event: NSEvent) {
         let raw = UInt64(event.modifierFlags.rawValue)
-        if raw & KeyboardShortcut.genericMask != 0 {
+        let genericCount = (raw & KeyboardShortcut.genericMask).nonzeroBitCount
+        let pendingCount = (pendingModifierFlags & KeyboardShortcut.genericMask).nonzeroBitCount
+
+        if genericCount >= pendingCount, genericCount > 0 {
+            // Track the largest modifier chord held so far; partial releases
+            // (e.g. letting go of rCmd before rAlt) keep the full chord.
             pendingModifierFlags = raw
-        } else if pendingModifierFlags != 0 {
-            // All modifiers released without a key: modifier-only shortcut
-            // (e.g. right-Option alone as push-to-talk).
+        } else if genericCount == 0, pendingModifierFlags != 0 {
+            // All modifiers released without a key: modifier-only shortcut —
+            // a single modifier (right-Option alone) or a chord (rAlt+rCmd).
             let shortcut = KeyboardShortcut(keyCode: nil, rawModifierFlags: pendingModifierFlags)
             appState.setShortcut(shortcut, for: type)
             finishRecording(drainingKeyCode: nil)

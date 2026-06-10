@@ -128,9 +128,10 @@ struct AppSettings: Codable {
     ]
 
     private static func rightOptionShortcut(keyCode: Int) -> KeyboardShortcut {
+        // 0x40 = NX device bit for the right Option key
         KeyboardShortcut(
             keyCode: keyCode,
-            rawModifierFlags: KeyboardShortcut.optionMask | KeyboardShortcut.rightOptionBit
+            rawModifierFlags: KeyboardShortcut.optionMask | 0x40
         )
     }
 
