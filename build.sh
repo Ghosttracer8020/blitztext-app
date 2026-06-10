@@ -137,14 +137,28 @@ cp -f "$PROJECT_DIR/Resources/AppIcon.icns" "$RESOURCES_DIR/" 2>/dev/null || tru
 cp -f "$PROJECT_DIR/Resources/menubar_icon.png" "$RESOURCES_DIR/" 2>/dev/null || true
 cp -f "$PROJECT_DIR/Resources/menubar_icon@2x.png" "$RESOURCES_DIR/" 2>/dev/null || true
 
+# Prefer a stable local signing identity over ad-hoc: ad-hoc signatures
+# change on every build, which invalidates TCC grants (Accessibility,
+# Microphone) each time. Create one e.g. as self-signed cert "Blitztext Dev".
+CODESIGN_IDENTITY="${BLITZTEXT_CODESIGN_IDENTITY:--}"
+if [ "$CODESIGN_IDENTITY" = "-" ] \
+    && security find-identity -v -p codesigning 2>/dev/null | grep -q "Blitztext Dev"; then
+    CODESIGN_IDENTITY="Blitztext Dev"
+fi
+if [ "$CODESIGN_IDENTITY" = "-" ]; then
+    echo "🔏 Signiere ad-hoc (Berechtigungen müssen nach jedem Build neu erteilt werden)."
+else
+    echo "🔏 Signiere mit Identität: $CODESIGN_IDENTITY"
+fi
+
 # In Projektordner kopieren
 DEST="$SCRIPT_DIR/Blitztext.app"
 rm -rf "$DEST"
 cp -R "$APP_PATH" "$DEST"
-echo "🔏 Signiere lokale Development-App ad-hoc. Dieses Artefakt ist nicht notarisiert."
+echo "🔏 Signiere lokale Development-App. Dieses Artefakt ist nicht notarisiert."
 # Strip xattrs that iCloud/file provider may have re-added before signing
 xattr -cr "$DEST" 2>/dev/null || true
-codesign --force --sign - "$DEST" 2>&1
+codesign --force --sign "$CODESIGN_IDENTITY" "$DEST" 2>&1
 verify_universal_app "$DEST"
 
 RUN_TARGET="$DEST"
@@ -159,9 +173,9 @@ if [ "$INSTALL_APP" = true ]; then
     fi
     rm -rf "$INSTALL_DEST"
     cp -R "$DEST" "$INSTALL_DEST"
-    echo "🔏 Signiere lokale Development-App ad-hoc. Dieses Artefakt ist nicht notarisiert."
+    echo "🔏 Signiere lokale Development-App. Dieses Artefakt ist nicht notarisiert."
     xattr -cr "$INSTALL_DEST" 2>/dev/null || true
-    codesign --force --sign - "$INSTALL_DEST" 2>&1
+    codesign --force --sign "$CODESIGN_IDENTITY" "$INSTALL_DEST" 2>&1
     verify_universal_app "$INSTALL_DEST"
     RUN_TARGET="$INSTALL_DEST"
 fi

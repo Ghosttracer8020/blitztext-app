@@ -54,3 +54,21 @@ targets:
         com.apple.security.app-sandbox: false
         com.apple.security.device.audio-input: true
         com.apple.security.network.client: true
+    scheme:
+      testTargets:
+        - BlitztextMacTests
+
+  # Pure-logic unit tests: compiles the tested service files directly instead
+  # of hosting the app (the menubar app's launch sequence — event taps,
+  # single-instance guard — does not belong in a test run).
+  BlitztextMacTests:
+    type: bundle.unit-test
+    platform: macOS
+    sources:
+      - path: Tests
+      - path: Services/KeyboardShortcut.swift
+      - path: Services/TranscriptionQualityService.swift
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: app.blitztext.mac.tests
+        GENERATE_INFOPLIST_FILE: YES

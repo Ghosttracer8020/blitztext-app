@@ -91,27 +91,10 @@ actor LocalTranscriptionService {
         fastModelName,
         defaultModelName
     ]
-    static let modelPageURL = URL(
-        string: "https://huggingface.co/argmaxinc/whisperkit-coreml/tree/main/openai_whisper-large-v3-v20240930_626MB"
-    )!
-    static let fastModelPageURL = URL(
-        string: "https://huggingface.co/argmaxinc/whisperkit-coreml/tree/main/openai_whisper-large-v3-v20240930_turbo_632MB"
-    )!
-    static let recommendedFastModelPageURL = URL(
-        string: "https://huggingface.co/argmaxinc/whisperkit-coreml/tree/main/openai_whisper-small_216MB"
-    )!
-
+    /// Single source for model page URLs: derived from repo + model name so
+    /// a version bump only ever touches the name constants above.
     static func modelPageURL(for modelName: String) -> URL {
-        switch normalizedModelName(modelName) {
-        case recommendedFastModelName:
-            return recommendedFastModelPageURL
-        case fastModelName:
-            return fastModelPageURL
-        case defaultModelName:
-            return modelPageURL
-        default:
-            return URL(string: "https://huggingface.co/\(modelRepo)/tree/main/\(normalizedModelName(modelName))")!
-        }
+        URL(string: "https://huggingface.co/\(modelRepo)/tree/main/\(normalizedModelName(modelName))")!
     }
 
     private var whisperKit: WhisperKit?

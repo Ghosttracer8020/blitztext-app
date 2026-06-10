@@ -20,6 +20,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         terminateIfAnotherInstanceIsRunning()
+        cleanUpOrphanedRecordings()
 
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
 
@@ -66,6 +67,25 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
     @objc private func handleDismissPopover() {
         appState.isPopoverShown = false
         popover.performClose(nil)
+    }
+
+    /// Recordings are cleaned up via defer blocks, which never run when the
+    /// process crashes or is force-quit — sensitive audio would persist in
+    /// the temp directory indefinitely. Purge leftovers on every launch.
+    private func cleanUpOrphanedRecordings() {
+        Task.detached(priority: .utility) {
+            let fileManager = FileManager.default
+            let tempDirectory = fileManager.temporaryDirectory
+            guard let items = try? fileManager.contentsOfDirectory(
+                at: tempDirectory,
+                includingPropertiesForKeys: nil
+            ) else { return }
+
+            for url in items
+            where url.lastPathComponent.hasPrefix("blitztext-") && url.pathExtension == "m4a" {
+                try? fileManager.removeItem(at: url)
+            }
+        }
     }
 
     /// Two running copies (e.g. one from the repo folder, one from

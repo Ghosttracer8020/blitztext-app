@@ -39,6 +39,9 @@ final class AppState {
     /// right after non-whitespace, e.g. a previous transcript's period) just
     /// before the synthetic Cmd+V.
     private var pendingPasteText: String?
+    /// The exact text written to the pasteboard for the current paste.
+    private var lastFinalizedPasteText: String?
+    private var clipboardClearTask: Task<Void, Never>?
 
     // Persisted settings
     var appSettings: AppSettings {
@@ -614,8 +617,12 @@ final class AppState {
         if let target {
             if frontmostPid == target.processIdentifier {
                 finalizePendingPasteForInsertion()
-                performPaste()
-                return
+                if performPaste(target: target) {
+                    scheduleClipboardAutoClear()
+                    return
+                }
+                // Frontmost changed during the AX context lookup: fall
+                // through to re-activate the target and retry.
             }
 
             target.application.activate(options: [])
@@ -652,22 +659,62 @@ final class AppState {
         guard let text = pendingPasteText else { return }
         pendingPasteText = nil
         if PasteContextService.insertionNeedsLeadingSpace() {
-            writeSensitiveTextToPasteboard(" " + text)
+            let spaced = " " + text
+            writeSensitiveTextToPasteboard(spaced)
+            lastFinalizedPasteText = spaced
+        } else {
+            lastFinalizedPasteText = text
         }
     }
 
-    private func performPaste() {
-        let source = CGEventSource(stateID: .hidSystemState)
-        let keyDown = CGEvent(keyboardEventSource: source, virtualKey: 0x09, keyDown: true)
-        keyDown?.flags = .maskCommand
-        let keyUp = CGEvent(keyboardEventSource: source, virtualKey: 0x09, keyDown: false)
-        keyUp?.flags = .maskCommand
+    /// Posts the synthetic Cmd+V. Returns false when the target lost
+    /// frontmost status (caller retries); CGEvent creation failures surface
+    /// as an error state — the text stays on the clipboard as fallback.
+    private func performPaste(target: PasteTarget?) -> Bool {
+        // Re-verify right before injecting: the AX context lookup in
+        // finalizePendingPasteForInsertion can take up to ~0.5s, during
+        // which the user may have switched apps.
+        if let target,
+           NSWorkspace.shared.frontmostApplication?.processIdentifier != target.processIdentifier {
+            return false
+        }
+
+        guard let source = CGEventSource(stateID: .hidSystemState),
+              let keyDown = CGEvent(keyboardEventSource: source, virtualKey: 0x09, keyDown: true),
+              let keyUp = CGEvent(keyboardEventSource: source, virtualKey: 0x09, keyDown: false) else {
+            // Paste events could not be created; retrying will not help.
+            // Signal the error — the text remains on the clipboard.
+            menuBarStatus = .error(activeWorkflow?.type)
+            return true
+        }
+        keyDown.flags = .maskCommand
+        keyUp.flags = .maskCommand
         // Tag so the custom hotkey tap never swallows our own paste events
         // (a user-recorded Cmd+V binding would otherwise break auto-paste).
-        keyDown?.setIntegerValueField(.eventSourceUserData, value: KeyboardShortcut.syntheticEventTag)
-        keyUp?.setIntegerValueField(.eventSourceUserData, value: KeyboardShortcut.syntheticEventTag)
-        keyDown?.post(tap: .cghidEventTap)
-        keyUp?.post(tap: .cghidEventTap)
+        keyDown.setIntegerValueField(.eventSourceUserData, value: KeyboardShortcut.syntheticEventTag)
+        keyUp.setIntegerValueField(.eventSourceUserData, value: KeyboardShortcut.syntheticEventTag)
+        keyDown.post(tap: .cghidEventTap)
+        keyUp.post(tap: .cghidEventTap)
+        return true
+    }
+
+    /// After a successful auto-paste the transcript has reached its target;
+    /// remove it from the clipboard after a grace period unless the user
+    /// copied something else in the meantime (or disabled the behavior).
+    private func scheduleClipboardAutoClear() {
+        guard appSettings.clipboardAutoClearEnabled,
+              let pastedText = lastFinalizedPasteText else { return }
+
+        clipboardClearTask?.cancel()
+        clipboardClearTask = Task { @MainActor [weak self] in
+            try? await Task.sleep(for: .seconds(60))
+            guard let self, !Task.isCancelled else { return }
+            guard self.appSettings.clipboardAutoClearEnabled else { return }
+            let pasteboard = NSPasteboard.general
+            if pasteboard.string(forType: .string) == pastedText {
+                pasteboard.clearContents()
+            }
+        }
     }
 
     private func captureCurrentFrontmostApp() -> PasteTarget? {

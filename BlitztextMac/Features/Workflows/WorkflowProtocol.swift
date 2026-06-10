@@ -141,6 +141,7 @@ struct AppSettings: Codable {
     var selectedLocalTranscriptionModelName: String = LocalTranscriptionService.recommendedFastModelName
     var hasAutoSelectedFastLocalModel: Bool = false
     var customShortcuts: [String: KeyboardShortcut] = AppSettings.defaultCustomShortcuts
+    var clipboardAutoClearEnabled: Bool = true
 
     init(
         hotkeyMode: HotkeyMode = .hold,
@@ -148,7 +149,8 @@ struct AppSettings: Codable {
         secureLocalModeEnabled: Bool = false,
         selectedLocalTranscriptionModelName: String = LocalTranscriptionService.recommendedFastModelName,
         hasAutoSelectedFastLocalModel: Bool = false,
-        customShortcuts: [String: KeyboardShortcut] = AppSettings.defaultCustomShortcuts
+        customShortcuts: [String: KeyboardShortcut] = AppSettings.defaultCustomShortcuts,
+        clipboardAutoClearEnabled: Bool = true
     ) {
         self.hotkeyMode = hotkeyMode
         self.hasSeenOnboarding = hasSeenOnboarding
@@ -156,6 +158,7 @@ struct AppSettings: Codable {
         self.selectedLocalTranscriptionModelName = selectedLocalTranscriptionModelName
         self.hasAutoSelectedFastLocalModel = hasAutoSelectedFastLocalModel
         self.customShortcuts = customShortcuts
+        self.clipboardAutoClearEnabled = clipboardAutoClearEnabled
     }
 
     enum CodingKeys: String, CodingKey {
@@ -165,6 +168,7 @@ struct AppSettings: Codable {
         case selectedLocalTranscriptionModelName
         case hasAutoSelectedFastLocalModel
         case customShortcuts
+        case clipboardAutoClearEnabled
     }
 
     /// Legacy key from the first hotkey iteration (right-Option letter map).
@@ -194,6 +198,10 @@ struct AppSettings: Codable {
         } else {
             customShortcuts = AppSettings.defaultCustomShortcuts
         }
+        clipboardAutoClearEnabled = try container.decodeIfPresent(
+            Bool.self,
+            forKey: .clipboardAutoClearEnabled
+        ) ?? true
     }
 }
 

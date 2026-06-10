@@ -23,7 +23,7 @@ enum AppSupportPaths {
 
     static var defaultWhisperKitModelURL: URL {
         whisperKitModelsDirectoryURL.appendingPathComponent(
-            "openai_whisper-large-v3-v20240930_626MB",
+            LocalTranscriptionService.defaultModelName,
             isDirectory: true
         )
     }

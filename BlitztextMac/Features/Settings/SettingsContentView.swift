@@ -70,6 +70,7 @@ struct AccessSettingsView: View {
     @State private var editingAPIKey = false
     @State private var saved = false
     @State private var saveErrorText: String?
+    @State private var saveWarningText: String?
     @State private var installActionErrorText: String?
     @State private var showCleanupOptions = false
     @State private var deleteLocalDataOnCleanup = true
@@ -260,6 +261,13 @@ struct AccessSettingsView: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
 
+            if let saveWarningText {
+                Text(saveWarningText)
+                    .font(.system(size: 10.5))
+                    .foregroundStyle(.orange)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
             VStack(alignment: .leading, spacing: 6) {
                 SectionLabel(text: "Hinweis")
 
@@ -372,6 +380,7 @@ struct AccessSettingsView: View {
 
     private func save() {
         saveErrorText = nil
+        saveWarningText = nil
         cleanupStatusText = nil
         cleanupErrorText = nil
         KeychainService.invalidateCache()
@@ -381,6 +390,11 @@ struct AccessSettingsView: View {
             guard !trimmedAPIKey.isEmpty else {
                 saveErrorText = "Bitte trage deinen OpenAI API Key ein."
                 return
+            }
+            // Warn (not block) on unusual formats: typed keys were previously
+            // saved unchecked and failed only at the first API call.
+            if trimmedAPIKey.range(of: Self.openAIAPIKeyPattern, options: .regularExpression) == nil {
+                saveWarningText = "Der Key sieht ungew\u{00F6}hnlich aus (erwartet: beginnt mit sk-). Gespeichert wurde er trotzdem."
             }
             do {
                 try KeychainService.save(key: .openAIAPIKey, value: trimmedAPIKey)
@@ -655,6 +669,19 @@ struct CustomizeSettingsView: View {
                     }
                     .pickerStyle(.segmented)
                 }
+            }
+
+            // MARK: Zwischenablage
+            VStack(alignment: .leading, spacing: 10) {
+                SectionLabel(text: "Zwischenablage")
+
+                Toggle("Nach dem Einf\u{00FC}gen automatisch leeren", isOn: $appState.appSettings.clipboardAutoClearEnabled)
+                    .font(.system(size: 11.5))
+
+                Text("Entfernt den eingef\u{00FC}gten Text 60 s nach erfolgreichem Einf\u{00FC}gen aus der Zwischenablage \u{2014} sofern du nichts anderes kopiert hast.")
+                    .font(.system(size: 10.5))
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
             }
 
             // MARK: Blitztext+
