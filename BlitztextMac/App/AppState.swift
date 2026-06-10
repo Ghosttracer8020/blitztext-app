@@ -35,6 +35,10 @@ final class AppState {
     private var menuBarStatusResetTask: Task<Void, Never>?
     private var workflowCleanupTask: Task<Void, Never>?
     private var accessibilityPermissionPollTask: Task<Void, Never>?
+    /// Text waiting to be pasted; finalized (leading space if the cursor sits
+    /// right after non-whitespace, e.g. a previous transcript's period) just
+    /// before the synthetic Cmd+V.
+    private var pendingPasteText: String?
 
     // Persisted settings
     var appSettings: AppSettings {
@@ -142,6 +146,12 @@ final class AppState {
         default:
             return type.displayName
         }
+    }
+
+    /// Effective hotkey label for menu rows: the user's recorded shortcut if
+    /// set, otherwise the built-in fn combo.
+    func hotkeyLabel(for type: WorkflowType) -> String {
+        appSettings.customShortcuts[type.rawValue]?.displayString ?? type.hotkeyLabel
     }
 
     func workflowSubtitle(for type: WorkflowType) -> String {
@@ -343,6 +353,7 @@ final class AppState {
     /// Copies the text, restores focus when needed, then simulates Cmd+V.
     /// The text intentionally remains on the clipboard as a fallback if paste is blocked.
     private func pasteAtCursor(_ text: String, target: PasteTarget? = nil) {
+        pendingPasteText = text
         writeSensitiveTextToPasteboard(text)
 
         if isPopoverShown {
@@ -602,6 +613,7 @@ final class AppState {
 
         if let target {
             if frontmostPid == target.processIdentifier {
+                finalizePendingPasteForInsertion()
                 performPaste()
                 return
             }
@@ -630,6 +642,17 @@ final class AppState {
                 target: target,
                 attemptsRemaining: attemptsRemaining - 1
             )
+        }
+    }
+
+    /// Consecutive dictations would otherwise stick to the previous
+    /// transcript's closing period: read the character before the cursor in
+    /// the focused element and prepend a space when needed.
+    private func finalizePendingPasteForInsertion() {
+        guard let text = pendingPasteText else { return }
+        pendingPasteText = nil
+        if PasteContextService.insertionNeedsLeadingSpace() {
+            writeSensitiveTextToPasteboard(" " + text)
         }
     }
 

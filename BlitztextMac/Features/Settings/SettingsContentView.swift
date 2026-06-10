@@ -597,7 +597,10 @@ struct CustomizeSettingsView: View {
             VStack(alignment: .leading, spacing: 10) {
                 SectionLabel(text: "Tastenk\u{00FC}rzel")
 
-                VStack(spacing: 6) {
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("Fest eingebaut (zus\u{00E4}tzlich aktiv)")
+                        .font(.system(size: 11))
+                        .foregroundStyle(.secondary)
                     ForEach(WorkflowType.mainMenuCases) { type in
                         HStack {
                             Text(type.hotkeyLabel)
