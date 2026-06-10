@@ -522,27 +522,6 @@ struct CustomizeSettingsView: View {
         LocalTranscriptionService.modelOptions()
     }
 
-    /// Binding for the right-Option letter of a workflow. -1 means "off".
-    /// Assigning a letter removes it from any other workflow to avoid
-    /// two workflows reacting to the same combo.
-    private func rightOptionKeyBinding(for type: WorkflowType) -> Binding<Int> {
-        Binding(
-            get: { appState.appSettings.rightOptionHotkeys[type.rawValue] ?? -1 },
-            set: { newKeyCode in
-                var keys = appState.appSettings.rightOptionHotkeys
-                if newKeyCode == -1 {
-                    keys.removeValue(forKey: type.rawValue)
-                } else {
-                    for (workflow, keyCode) in keys where keyCode == newKeyCode {
-                        keys.removeValue(forKey: workflow)
-                    }
-                    keys[type.rawValue] = newKeyCode
-                }
-                appState.appSettings.rightOptionHotkeys = keys
-            }
-        )
-    }
-
     var body: some View {
         VStack(alignment: .leading, spacing: 20) {
 
@@ -632,9 +611,9 @@ struct CustomizeSettingsView: View {
                     }
                 }
 
-                // Right-Option letter combos
+                // Custom shortcuts (single key or modifier combo)
                 VStack(alignment: .leading, spacing: 8) {
-                    Text("Rechte \u{2325}-Taste + Buchstabe")
+                    Text("Eigene K\u{00FC}rzel")
                         .font(.system(size: 11))
                         .foregroundStyle(.secondary)
 
@@ -644,17 +623,14 @@ struct CustomizeSettingsView: View {
                                 Text(appState.displayName(for: type))
                                     .font(.system(size: 11.5, weight: .medium))
                                 Spacer()
-                                Picker("", selection: rightOptionKeyBinding(for: type)) {
-                                    Text("Aus").tag(-1)
-                                    ForEach(RightOptionHotkeyService.letterKeyCodes, id: \.keyCode) { entry in
-                                        Text("\u{2325}R + \(entry.letter)").tag(entry.keyCode)
-                                    }
-                                }
-                                .labelsHidden()
-                                .frame(width: 110)
+                                ShortcutRecorderView(type: type, appState: appState)
                             }
                         }
                     }
+
+                    Text("Klicken, dann Taste oder Kombination dr\u{00FC}cken. Esc bricht ab, R\u{00FC}ckschritt l\u{00F6}scht.")
+                        .font(.system(size: 10.5))
+                        .foregroundStyle(.secondary)
 
                     if !appState.accessibilityPermissionGranted {
                         Text("Ben\u{00F6}tigt die Bedienungshilfen-Berechtigung.")
@@ -847,6 +823,107 @@ struct CustomizeSettingsView: View {
 }
 
 // MARK: - Flow Layout (for term tags)
+
+// MARK: - Shortcut Recorder
+
+/// Click-to-record field for a workflow shortcut: press a single key or any
+/// modifier+key combination. Esc cancels, Delete clears the binding.
+/// While recording, both hotkey systems are suspended so the pressed combo
+/// does not trigger a workflow.
+private struct ShortcutRecorderView: View {
+    let type: WorkflowType
+    @Bindable var appState: AppState
+    @State private var keyMonitor: Any?
+
+    /// System combos that must never be bound: swallowing them would break
+    /// copy/paste/quit systemwide — including this app's own auto-paste ⌘V.
+    private static let blockedShortcuts: [KeyboardShortcut] = [
+        KeyboardShortcut(keyCode: 9, rawModifierFlags: KeyboardShortcut.commandMask),  // Cmd+V
+        KeyboardShortcut(keyCode: 8, rawModifierFlags: KeyboardShortcut.commandMask),  // Cmd+C
+        KeyboardShortcut(keyCode: 7, rawModifierFlags: KeyboardShortcut.commandMask),  // Cmd+X
+        KeyboardShortcut(keyCode: 12, rawModifierFlags: KeyboardShortcut.commandMask), // Cmd+Q
+        KeyboardShortcut(keyCode: 13, rawModifierFlags: KeyboardShortcut.commandMask), // Cmd+W
+        KeyboardShortcut(keyCode: 48, rawModifierFlags: KeyboardShortcut.commandMask), // Cmd+Tab
+    ]
+
+    private var currentShortcut: KeyboardShortcut? {
+        appState.appSettings.customShortcuts[type.rawValue]
+    }
+
+    private var isRecording: Bool {
+        appState.recordingShortcutFor == type
+    }
+
+    private var anotherFieldIsRecording: Bool {
+        appState.recordingShortcutFor != nil && !isRecording
+    }
+
+    var body: some View {
+        HStack(spacing: 4) {
+            Button {
+                isRecording ? cancelRecording() : beginRecording()
+            } label: {
+                Text(isRecording
+                    ? "Taste dr\u{00FC}cken \u{2026}"
+                    : (currentShortcut?.displayString ?? "Nicht belegt"))
+                    .font(.system(size: 11, design: .monospaced))
+                    .foregroundStyle(isRecording ? Color.accentColor : .primary)
+                    .frame(minWidth: 88)
+            }
+            .disabled(anotherFieldIsRecording)
+
+            if currentShortcut != nil && !isRecording {
+                Button {
+                    appState.setShortcut(nil, for: type)
+                } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .font(.system(size: 11))
+                        .foregroundStyle(.secondary)
+                }
+                .buttonStyle(.plain)
+                .disabled(anotherFieldIsRecording)
+                .help("K\u{00FC}rzel entfernen")
+            }
+        }
+        .onDisappear {
+            cancelRecording()
+        }
+    }
+
+    private func beginRecording() {
+        guard keyMonitor == nil, appState.recordingShortcutFor == nil else { return }
+        appState.beginShortcutCapture(for: type)
+
+        keyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
+            switch event.keyCode {
+            case 53: // Escape: cancel
+                cancelRecording()
+            case 51: // Delete: clear binding
+                appState.setShortcut(nil, for: type)
+                cancelRecording()
+            default:
+                let shortcut = KeyboardShortcut(
+                    keyCode: Int(event.keyCode),
+                    rawModifierFlags: UInt64(event.modifierFlags.rawValue)
+                )
+                if !Self.blockedShortcuts.contains(shortcut) {
+                    appState.setShortcut(shortcut, for: type)
+                }
+                cancelRecording()
+            }
+            return nil
+        }
+    }
+
+    private func cancelRecording() {
+        if let keyMonitor {
+            NSEvent.removeMonitor(keyMonitor)
+        }
+        keyMonitor = nil
+        guard isRecording else { return }
+        appState.endShortcutCapture()
+    }
+}
 
 struct FlowLayout: Layout {
     var spacing: CGFloat = 6

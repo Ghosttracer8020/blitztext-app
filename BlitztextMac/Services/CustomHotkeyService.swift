@@ -1,8 +1,9 @@
 import Cocoa
 
-/// Letter-key hotkeys with the RIGHT Option key as modifier (e.g. right-Alt + K).
+/// User-configurable hotkeys: a single key or any modifier+key combination
+/// per workflow (recorded in settings, e.g. right-Alt+K or F5).
 ///
-/// Uses an active CGEventTap instead of NSEvent monitors so the letter key is
+/// Uses an active CGEventTap instead of NSEvent monitors so the bound key is
 /// swallowed and never reaches the focused application while dictating.
 /// The tap runs on a dedicated thread with its own run loop: an active
 /// keyboard tap on the app's main run loop would add systemwide typing
@@ -10,35 +11,28 @@ import Cocoa
 /// ~1s would get the tap disabled by the system mid-combo.
 /// Requires Accessibility permission (already needed for auto-paste).
 @MainActor
-final class RightOptionHotkeyService {
+final class CustomHotkeyService {
     var onHotkeyEvent: ((HotkeyEvent) -> Void)? {
         didSet { state.onEvent = makeEventSink() }
     }
 
-    private let state = RightOptionTapState()
+    private let state = CustomHotkeyTapState()
     private var eventTap: CFMachPort?
     private var runLoopSource: CFRunLoopSource?
     private var tapThread: Thread?
 
-    /// ANSI virtual key codes for letters. Positions match QWERTZ for all
-    /// letters except Y/Z, which are swapped relative to the printed label.
-    static let letterKeyCodes: [(letter: String, keyCode: Int)] = [
-        ("A", 0), ("B", 11), ("C", 8), ("D", 2), ("E", 14), ("F", 3),
-        ("G", 5), ("H", 4), ("I", 34), ("J", 38), ("K", 40), ("L", 37),
-        ("M", 46), ("N", 45), ("O", 31), ("P", 35), ("Q", 12), ("R", 15),
-        ("S", 1), ("T", 17), ("U", 32), ("V", 9), ("W", 13), ("X", 7),
-    ]
-
-    static func letter(forKeyCode keyCode: Int) -> String? {
-        letterKeyCodes.first(where: { $0.keyCode == keyCode })?.letter
-    }
-
-    func updateBindings(_ keyMap: [String: Int]) {
-        let resolved = keyMap.reduce(into: [Int64: WorkflowType]()) { result, entry in
-            guard let type = WorkflowType(rawValue: entry.key) else { return }
-            result[Int64(entry.value)] = type
+    func updateBindings(_ shortcuts: [String: KeyboardShortcut]) {
+        let resolved = shortcuts.compactMap { entry -> (KeyboardShortcut, WorkflowType)? in
+            guard let type = WorkflowType(rawValue: entry.key) else { return nil }
+            return (entry.value, type)
         }
         state.setBindings(resolved)
+    }
+
+    /// While the settings UI records a new shortcut, the tap passes all
+    /// events through so the recorded combo does not trigger a workflow.
+    func setSuspended(_ suspended: Bool) {
+        state.setSuspended(suspended)
     }
 
     /// Creates the event tap. Safe to call repeatedly; retries are cheap when
@@ -59,7 +53,7 @@ final class RightOptionHotkeyService {
 
         let callback: CGEventTapCallBack = { _, type, event, userInfo in
             guard let userInfo else { return Unmanaged.passUnretained(event) }
-            let state = Unmanaged<RightOptionTapState>
+            let state = Unmanaged<CustomHotkeyTapState>
                 .fromOpaque(userInfo)
                 .takeUnretainedValue()
             return state.process(type: type, event: event)
@@ -93,7 +87,7 @@ final class RightOptionHotkeyService {
             // Returns once the source is invalidated in stop()
             CFRunLoopRun()
         }
-        thread.name = "BlitztextRightOptionTap"
+        thread.name = "BlitztextHotkeyTap"
         thread.qualityOfService = .userInteractive
         tapThread = thread
         thread.start()
@@ -141,18 +135,22 @@ final class RightOptionHotkeyService {
 /// Tap-thread-side state. All members are guarded by `lock`; the CGEventTap
 /// callback runs on the dedicated tap thread while bindings and lifecycle
 /// updates arrive from the main thread.
-final class RightOptionTapState: @unchecked Sendable {
-    private let lock = NSLock()
-    private var bindings: [Int64: WorkflowType] = [:]
-    /// Key currently held as part of an active combo.
-    private var activeKeyCode: Int64?
-    /// Key still physically held after right-Option was released first.
-    /// Its remaining autorepeats and keyUp are swallowed so no stray
-    /// letter reaches the focused app.
-    private var drainKeyCode: Int64?
+final class CustomHotkeyTapState: @unchecked Sendable {
+    private struct ActiveCombo {
+        let keyCode: Int64
+        let shortcut: KeyboardShortcut
+        let workflow: WorkflowType
+    }
 
-    /// Device-dependent flag bit for the right Option key (NX_DEVICERALTKEYMASK)
-    private static let rightOptionFlagMask: UInt64 = 0x40
+    private let lock = NSLock()
+    private var bindings: [(shortcut: KeyboardShortcut, workflow: WorkflowType)] = []
+    /// Combo currently held.
+    private var active: ActiveCombo?
+    /// Key still physically held after its required modifiers were released
+    /// first. Its remaining autorepeats and keyUp are swallowed so no stray
+    /// character reaches the focused app.
+    private var drainKeyCode: Int64?
+    private var suspended = false
 
     private var _tapPort: CFMachPort?
     var tapPort: CFMachPort? {
@@ -166,34 +164,53 @@ final class RightOptionTapState: @unchecked Sendable {
         set { lock.withLock { _onEvent = newValue } }
     }
 
-    func setBindings(_ newBindings: [Int64: WorkflowType]) {
+    func setBindings(_ newBindings: [(KeyboardShortcut, WorkflowType)]) {
         lock.withLock { bindings = newBindings }
+    }
+
+    func setSuspended(_ value: Bool) {
+        lock.withLock {
+            suspended = value
+            // Do not keep half-finished combo state across a suspension.
+            active = nil
+            drainKeyCode = nil
+        }
     }
 
     func reset() {
         lock.withLock {
-            activeKeyCode = nil
+            active = nil
             drainKeyCode = nil
         }
     }
 
     func process(type: CGEventType, event: CGEvent) -> Unmanaged<CGEvent>? {
+        // Never match or swallow this app's own synthetic events
+        // (e.g. the auto-paste Cmd+V posted by performPaste).
+        if event.getIntegerValueField(.eventSourceUserData) == KeyboardShortcut.syntheticEventTag {
+            return Unmanaged.passUnretained(event)
+        }
+
         var emit: HotkeyEvent?
         var swallow = false
-        var sink: (@Sendable (HotkeyEvent) -> Void)?
 
         lock.lock()
-        sink = _onEvent
+        let sink = _onEvent
+
+        if suspended, type != .tapDisabledByTimeout, type != .tapDisabledByUserInput {
+            lock.unlock()
+            return Unmanaged.passUnretained(event)
+        }
 
         switch type {
         case .tapDisabledByTimeout, .tapDisabledByUserInput:
             // While disabled we may have missed the combo's keyUp: end the
             // combo so hold-mode recordings are not stranded and the next
-            // plain press of the letter is not swallowed.
-            if let keyCode = activeKeyCode, let workflow = bindings[keyCode] {
-                emit = .up(workflow)
+            // plain press of the key is not swallowed.
+            if let combo = active {
+                emit = .up(combo.workflow)
             }
-            activeKeyCode = nil
+            active = nil
             drainKeyCode = nil
             if let port = _tapPort {
                 CGEvent.tapEnable(tap: port, enable: true)
@@ -201,29 +218,29 @@ final class RightOptionTapState: @unchecked Sendable {
 
         case .keyDown:
             let keyCode = event.getIntegerValueField(.keyboardEventKeycode)
-            if keyCode == activeKeyCode || keyCode == drainKeyCode {
+            if keyCode == active?.keyCode || keyCode == drainKeyCode {
                 // Autorepeats of the combo key, or of a key still held after
-                // the modifier was released first.
+                // its modifiers were released first.
                 swallow = true
-            } else if isRightOptionHeld(event.flags), bindings[keyCode] != nil {
-                if activeKeyCode == nil && drainKeyCode == nil {
-                    activeKeyCode = keyCode
-                    if let workflow = bindings[keyCode] {
-                        emit = .down(workflow)
-                    }
+            } else if let match = bindings.first(where: { $0.shortcut.matches(keyCode: keyCode, flags: event.flags) }) {
+                if active == nil && drainKeyCode == nil {
+                    active = ActiveCombo(
+                        keyCode: keyCode,
+                        shortcut: match.shortcut,
+                        workflow: match.workflow
+                    )
+                    emit = .down(match.workflow)
                 }
-                // A second bound key during an active combo is swallowed so
-                // no stray Option-layer glyph reaches the focused app.
+                // A second bound combo during an active one is swallowed so
+                // no stray character reaches the focused app.
                 swallow = true
             }
 
         case .keyUp:
             let keyCode = event.getIntegerValueField(.keyboardEventKeycode)
-            if keyCode == activeKeyCode {
-                activeKeyCode = nil
-                if let workflow = bindings[keyCode] {
-                    emit = .up(workflow)
-                }
+            if let combo = active, keyCode == combo.keyCode {
+                active = nil
+                emit = .up(combo.workflow)
                 swallow = true
             } else if keyCode == drainKeyCode {
                 drainKeyCode = nil
@@ -231,14 +248,12 @@ final class RightOptionTapState: @unchecked Sendable {
             }
 
         case .flagsChanged:
-            // Releasing right Option while the letter is still held ends the
-            // combo; the letter keeps draining until its physical keyUp.
-            if let keyCode = activeKeyCode, !isRightOptionHeld(event.flags) {
-                activeKeyCode = nil
-                drainKeyCode = keyCode
-                if let workflow = bindings[keyCode] {
-                    emit = .up(workflow)
-                }
+            // Releasing a required modifier while the key is still held ends
+            // the combo; the key keeps draining until its physical keyUp.
+            if let combo = active, !combo.shortcut.requiredModifiersStillHeld(event.flags) {
+                active = nil
+                drainKeyCode = combo.keyCode
+                emit = .up(combo.workflow)
             }
 
         default:
@@ -252,10 +267,5 @@ final class RightOptionTapState: @unchecked Sendable {
         }
 
         return swallow ? nil : Unmanaged.passUnretained(event)
-    }
-
-    private func isRightOptionHeld(_ flags: CGEventFlags) -> Bool {
-        flags.contains(.maskAlternate)
-            && flags.rawValue & Self.rightOptionFlagMask != 0
     }
 }

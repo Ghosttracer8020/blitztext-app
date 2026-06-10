@@ -117,22 +117,29 @@ protocol Workflow: AnyObject, Observable {
 // MARK: - App Settings
 
 struct AppSettings: Codable {
-    /// Default right-Option letter bindings, keyed by WorkflowType.rawValue.
-    /// K = push-to-talk transcription; J/H/U/L for the remaining workflows.
-    static let defaultRightOptionHotkeys: [String: Int] = [
-        WorkflowType.transcription.rawValue: 40,      // K
-        WorkflowType.textImprover.rawValue: 38,       // J
-        WorkflowType.dampfAblassen.rawValue: 4,       // H
-        WorkflowType.emojiText.rawValue: 32,          // U
-        WorkflowType.localTranscription.rawValue: 37, // L
+    /// Default shortcuts, keyed by WorkflowType.rawValue: right-Option +
+    /// K (push-to-talk transcription) / J / H / U / L.
+    static let defaultCustomShortcuts: [String: KeyboardShortcut] = [
+        WorkflowType.transcription.rawValue: rightOptionShortcut(keyCode: 40),      // K
+        WorkflowType.textImprover.rawValue: rightOptionShortcut(keyCode: 38),       // J
+        WorkflowType.dampfAblassen.rawValue: rightOptionShortcut(keyCode: 4),       // H
+        WorkflowType.emojiText.rawValue: rightOptionShortcut(keyCode: 32),          // U
+        WorkflowType.localTranscription.rawValue: rightOptionShortcut(keyCode: 37), // L
     ]
+
+    private static func rightOptionShortcut(keyCode: Int) -> KeyboardShortcut {
+        KeyboardShortcut(
+            keyCode: keyCode,
+            rawModifierFlags: KeyboardShortcut.optionMask | KeyboardShortcut.rightOptionBit
+        )
+    }
 
     var hotkeyMode: HotkeyMode = .hold
     var hasSeenOnboarding: Bool = false
     var secureLocalModeEnabled: Bool = false
     var selectedLocalTranscriptionModelName: String = LocalTranscriptionService.recommendedFastModelName
     var hasAutoSelectedFastLocalModel: Bool = false
-    var rightOptionHotkeys: [String: Int] = AppSettings.defaultRightOptionHotkeys
+    var customShortcuts: [String: KeyboardShortcut] = AppSettings.defaultCustomShortcuts
 
     init(
         hotkeyMode: HotkeyMode = .hold,
@@ -140,14 +147,14 @@ struct AppSettings: Codable {
         secureLocalModeEnabled: Bool = false,
         selectedLocalTranscriptionModelName: String = LocalTranscriptionService.recommendedFastModelName,
         hasAutoSelectedFastLocalModel: Bool = false,
-        rightOptionHotkeys: [String: Int] = AppSettings.defaultRightOptionHotkeys
+        customShortcuts: [String: KeyboardShortcut] = AppSettings.defaultCustomShortcuts
     ) {
         self.hotkeyMode = hotkeyMode
         self.hasSeenOnboarding = hasSeenOnboarding
         self.secureLocalModeEnabled = secureLocalModeEnabled
         self.selectedLocalTranscriptionModelName = selectedLocalTranscriptionModelName
         self.hasAutoSelectedFastLocalModel = hasAutoSelectedFastLocalModel
-        self.rightOptionHotkeys = rightOptionHotkeys
+        self.customShortcuts = customShortcuts
     }
 
     enum CodingKeys: String, CodingKey {
@@ -156,6 +163,11 @@ struct AppSettings: Codable {
         case secureLocalModeEnabled
         case selectedLocalTranscriptionModelName
         case hasAutoSelectedFastLocalModel
+        case customShortcuts
+    }
+
+    /// Legacy key from the first hotkey iteration (right-Option letter map).
+    private enum LegacyCodingKeys: String, CodingKey {
         case rightOptionHotkeys
     }
 
@@ -172,10 +184,15 @@ struct AppSettings: Codable {
             Bool.self,
             forKey: .hasAutoSelectedFastLocalModel
         ) ?? false
-        rightOptionHotkeys = try container.decodeIfPresent(
-            [String: Int].self,
-            forKey: .rightOptionHotkeys
-        ) ?? AppSettings.defaultRightOptionHotkeys
+
+        if let stored = try container.decodeIfPresent([String: KeyboardShortcut].self, forKey: .customShortcuts) {
+            customShortcuts = stored
+        } else if let legacyContainer = try? decoder.container(keyedBy: LegacyCodingKeys.self),
+                  let legacy = try legacyContainer.decodeIfPresent([String: Int].self, forKey: .rightOptionHotkeys) {
+            customShortcuts = legacy.mapValues { Self.rightOptionShortcut(keyCode: $0) }
+        } else {
+            customShortcuts = AppSettings.defaultCustomShortcuts
+        }
     }
 }
 

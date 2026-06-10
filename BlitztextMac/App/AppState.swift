@@ -41,7 +41,7 @@ final class AppState {
         didSet {
             saveSettings()
             prewarmLocalTranscriptionIfNeeded()
-            rightOptionHotkeyService.updateBindings(appSettings.rightOptionHotkeys)
+            customHotkeyService.updateBindings(appSettings.customShortcuts)
         }
     }
     var transcriptionSettings: TranscriptionSettings {
@@ -59,7 +59,7 @@ final class AppState {
 
     // Hotkeys
     let hotkeyService = HotkeyService()
-    let rightOptionHotkeyService = RightOptionHotkeyService()
+    let customHotkeyService = CustomHotkeyService()
 
     // Computed
     var isConfigured: Bool {
@@ -82,7 +82,42 @@ final class AppState {
         refreshAccessibilityPermission()
         autoSelectFastLocalModelIfNeeded()
         prewarmLocalTranscriptionIfNeeded()
-        rightOptionHotkeyService.updateBindings(appSettings.rightOptionHotkeys)
+        customHotkeyService.updateBindings(appSettings.customShortcuts)
+    }
+
+    // MARK: - Shortcut Recording
+
+    /// Workflow whose shortcut is currently being recorded; other recorder
+    /// fields disable themselves so only one capture runs at a time.
+    var recordingShortcutFor: WorkflowType?
+
+    /// While the settings UI records a new shortcut, both hotkey systems are
+    /// suspended so the recorded keys do not trigger a workflow.
+    func beginShortcutCapture(for type: WorkflowType) {
+        recordingShortcutFor = type
+        hotkeyService.isSuspended = true
+        customHotkeyService.setSuspended(true)
+    }
+
+    func endShortcutCapture() {
+        recordingShortcutFor = nil
+        hotkeyService.isSuspended = false
+        customHotkeyService.setSuspended(false)
+    }
+
+    /// Assigns or clears (nil) a workflow's shortcut. A shortcut already used
+    /// by another workflow is taken over so a combo never triggers two.
+    func setShortcut(_ shortcut: KeyboardShortcut?, for type: WorkflowType) {
+        var shortcuts = appSettings.customShortcuts
+        if let shortcut {
+            for (workflow, existing) in shortcuts where existing == shortcut {
+                shortcuts.removeValue(forKey: workflow)
+            }
+            shortcuts[type.rawValue] = shortcut
+        } else {
+            shortcuts.removeValue(forKey: type.rawValue)
+        }
+        appSettings.customShortcuts = shortcuts
     }
 
     // MARK: - Custom Display Names
@@ -314,7 +349,7 @@ final class AppState {
             menuBarStatus = .error(activeWorkflow?.type)
             return
         }
-        rightOptionHotkeyService.startIfNeeded()
+        customHotkeyService.startIfNeeded()
 
         attemptPasteTrusted(
             target: target,
@@ -417,7 +452,7 @@ final class AppState {
         // The event tap for right-Option hotkeys can only be created once
         // Accessibility permission exists; retry whenever the status refreshes.
         if accessibilityPermissionGranted {
-            rightOptionHotkeyService.startIfNeeded()
+            customHotkeyService.startIfNeeded()
         }
     }
 
@@ -598,6 +633,10 @@ final class AppState {
         keyDown?.flags = .maskCommand
         let keyUp = CGEvent(keyboardEventSource: source, virtualKey: 0x09, keyDown: false)
         keyUp?.flags = .maskCommand
+        // Tag so the custom hotkey tap never swallows our own paste events
+        // (a user-recorded Cmd+V binding would otherwise break auto-paste).
+        keyDown?.setIntegerValueField(.eventSourceUserData, value: KeyboardShortcut.syntheticEventTag)
+        keyUp?.setIntegerValueField(.eventSourceUserData, value: KeyboardShortcut.syntheticEventTag)
         keyDown?.post(tap: .cghidEventTap)
         keyUp?.post(tap: .cghidEventTap)
     }

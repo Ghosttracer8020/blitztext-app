@@ -1,0 +1,116 @@
+import Foundation
+import CoreGraphics
+
+/// A user-recorded hotkey: a single non-modifier key plus optional modifiers.
+/// Option keeps its left/right distinction so e.g. a right-Option combo does
+/// not block the left Option key's character layer (⌥L = @ on German layouts).
+struct KeyboardShortcut: Codable, Equatable {
+    var keyCode: Int
+    /// Generic modifier bits (subset of CGEventFlags: ⌘⇧⌥⌃ + fn)
+    var modifiers: UInt64
+    /// Device-specific Option-side bits captured at record time
+    /// (0x20 = left Option, 0x40 = right Option, 0 = no side requirement)
+    var optionSideBits: UInt64
+
+    static let commandMask: UInt64 = 0x10_0000  // CGEventFlags.maskCommand
+    static let shiftMask: UInt64 = 0x2_0000     // .maskShift
+    static let optionMask: UInt64 = 0x8_0000    // .maskAlternate
+    static let controlMask: UInt64 = 0x4_0000   // .maskControl
+    static let fnMask: UInt64 = 0x80_0000       // .maskSecondaryFn
+    static let genericMask: UInt64 =
+        commandMask | shiftMask | optionMask | controlMask | fnMask
+    static let leftOptionBit: UInt64 = 0x20     // NX_DEVICELALTKEYMASK
+    static let rightOptionBit: UInt64 = 0x40    // NX_DEVICERALTKEYMASK
+
+    /// Marker on synthetic CGEvents posted by this app (e.g. the auto-paste
+    /// Cmd+V) so the hotkey tap never matches or swallows its own events.
+    static let syntheticEventTag: Int64 = 0x424C_5A54 // "BLZT"
+
+    /// Keys for which macOS sets the fn flag implicitly (F-keys, arrows,
+    /// navigation block). The flag is unreliable across keyboards there, so
+    /// it is stripped at capture and ignored at match time.
+    static let impliedFnKeyCodes: Set<Int> = [
+        122, 120, 99, 118, 96, 97, 98, 100, 101, 109, 103, 111, // F1-F12
+        123, 124, 125, 126,                                     // arrows
+        115, 116, 117, 119, 121,                                // nav block
+    ]
+
+    init(keyCode: Int, rawModifierFlags: UInt64) {
+        self.keyCode = keyCode
+        var generic = rawModifierFlags & Self.genericMask
+        if Self.impliedFnKeyCodes.contains(keyCode) {
+            generic &= ~Self.fnMask
+        }
+        self.modifiers = generic
+        self.optionSideBits = (rawModifierFlags & Self.optionMask != 0)
+            ? rawModifierFlags & (Self.leftOptionBit | Self.rightOptionBit)
+            : 0
+    }
+
+    /// Exact match for a keyDown: same key, exactly the recorded modifier set.
+    func matches(keyCode: Int64, flags: CGEventFlags) -> Bool {
+        guard keyCode == Int64(self.keyCode) else { return false }
+        var relevantMask = Self.genericMask
+        if Self.impliedFnKeyCodes.contains(self.keyCode) {
+            relevantMask &= ~Self.fnMask
+        }
+        guard flags.rawValue & relevantMask == modifiers else { return false }
+        return optionSideSatisfied(by: flags)
+    }
+
+    /// Whether the recorded modifiers are still held (combo-end detection).
+    /// A shortcut without modifiers never ends via flagsChanged.
+    func requiredModifiersStillHeld(_ flags: CGEventFlags) -> Bool {
+        guard modifiers != 0 else { return true }
+        guard flags.rawValue & modifiers == modifiers else { return false }
+        return optionSideSatisfied(by: flags)
+    }
+
+    private func optionSideSatisfied(by flags: CGEventFlags) -> Bool {
+        // Exactly one recorded side -> that physical key must be down
+        if optionSideBits == Self.leftOptionBit || optionSideBits == Self.rightOptionBit {
+            return flags.rawValue & optionSideBits != 0
+        }
+        return true
+    }
+
+    var displayString: String {
+        var parts: [String] = []
+        if modifiers & Self.fnMask != 0 { parts.append("fn") }
+        if modifiers & Self.controlMask != 0 { parts.append("\u{2303}") }
+        if modifiers & Self.optionMask != 0 {
+            switch optionSideBits {
+            case Self.rightOptionBit: parts.append("\u{2325}R")
+            case Self.leftOptionBit: parts.append("\u{2325}L")
+            default: parts.append("\u{2325}")
+            }
+        }
+        if modifiers & Self.shiftMask != 0 { parts.append("\u{21E7}") }
+        if modifiers & Self.commandMask != 0 { parts.append("\u{2318}") }
+        parts.append(Self.keyName(for: keyCode))
+        return parts.joined(separator: " ")
+    }
+
+    /// Display names for common ANSI virtual key codes. Letter positions
+    /// match QWERTZ except Y/Z, which are swapped vs. the printed label.
+    static func keyName(for keyCode: Int) -> String {
+        if let name = keyNames[keyCode] { return name }
+        return "#\(keyCode)"
+    }
+
+    private static let keyNames: [Int: String] = [
+        0: "A", 11: "B", 8: "C", 2: "D", 14: "E", 3: "F", 5: "G", 4: "H",
+        34: "I", 38: "J", 40: "K", 37: "L", 46: "M", 45: "N", 31: "O",
+        35: "P", 12: "Q", 15: "R", 1: "S", 17: "T", 32: "U", 9: "V",
+        13: "W", 7: "X", 16: "Y", 6: "Z",
+        29: "0", 18: "1", 19: "2", 20: "3", 21: "4", 23: "5", 22: "6",
+        26: "7", 28: "8", 25: "9",
+        122: "F1", 120: "F2", 99: "F3", 118: "F4", 96: "F5", 97: "F6",
+        98: "F7", 100: "F8", 101: "F9", 109: "F10", 103: "F11", 111: "F12",
+        49: "Space", 36: "\u{21A9}", 48: "\u{21E5}",
+        123: "\u{2190}", 124: "\u{2192}", 125: "\u{2193}", 126: "\u{2191}",
+        117: "\u{2326}", 115: "\u{2196}", 119: "\u{2198}", 116: "\u{21DE}", 121: "\u{21DF}",
+        47: ".", 43: ",", 44: "/", 41: ";", 39: "'", 27: "-", 24: "=",
+        33: "[", 30: "]", 42: "\\", 50: "`", 10: "\u{00A7}",
+    ]
+}

@@ -41,14 +41,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
         appState.hotkeyService.onHotkeyEvent = { [weak self] event in
             self?.handleHotkeyEvent(event)
         }
-        appState.rightOptionHotkeyService.onHotkeyEvent = { [weak self] event in
+        appState.customHotkeyService.onHotkeyEvent = { [weak self] event in
             self?.handleHotkeyEvent(event)
         }
         appState.onMenuBarStatusChange = { [weak self] status in
             self?.menuBarStatusController.update(to: status)
         }
         appState.hotkeyService.start()
-        appState.rightOptionHotkeyService.startIfNeeded()
+        appState.customHotkeyService.startIfNeeded()
 
         // Listen for popover dismiss requests (from auto-paste)
         NotificationCenter.default.addObserver(

@@ -37,6 +37,8 @@ final class HotkeyService {
     private var activeCombo: WorkflowType?  // Which combo is currently held
 
     var onHotkeyEvent: ((HotkeyEvent) -> Void)?
+    /// Set while the settings UI records a new shortcut.
+    var isSuspended = false
 
     func start() {
         globalMonitor = NSEvent.addGlobalMonitorForEvents(matching: .flagsChanged) { [weak self] event in
@@ -70,6 +72,11 @@ final class HotkeyService {
     }
 
     private func handleFlags(_ event: NSEvent) {
+        guard !isSuspended else {
+            activeCombo = nil
+            return
+        }
+
         let flags = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
 
         // fn + Shift + Control -> local transcription
