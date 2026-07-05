@@ -29,7 +29,7 @@ private struct TranscriptionOpenAIErrorResponse: Decodable {
 }
 
 enum TranscriptionService {
-    private static let remoteModel = "whisper-1"
+    private static let remoteModel = "gpt-4o-mini-transcribe"
     private static let transcriptionsURL = URL(string: "https://api.openai.com/v1/audio/transcriptions")!
 
     private static let session: URLSession = {

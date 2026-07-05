@@ -21,8 +21,8 @@ enum LLMError: LocalizedError {
 }
 
 enum RewriteModel: String {
-    case fastEdit = "gpt-4o-mini"
-    case rageMode = "gpt-4o"
+    case fastEdit = "gpt-4.1-mini"
+    case rageMode = "gpt-4.1"
 }
 
 private struct OpenAIChatRequest: Encodable {
