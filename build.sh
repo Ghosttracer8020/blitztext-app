@@ -6,6 +6,7 @@ set -euo pipefail
 
 RUN_AFTER=false
 INSTALL_APP=false
+RUN_TESTS_ONLY=false
 BUILD_CONFIGURATION="Release"
 UNIVERSAL_ARCHS="arm64 x86_64"
 
@@ -23,9 +24,12 @@ for arg in "$@"; do
         --release)
             BUILD_CONFIGURATION="Release"
             ;;
+        --test)
+            RUN_TESTS_ONLY=true
+            ;;
         *)
             echo "Unbekannte Option: $arg"
-            echo "Verwendung: ./build.sh [--install] [--run] [--release] [--debug]"
+            echo "Verwendung: ./build.sh [--install] [--run] [--release] [--debug] [--test]"
             exit 1
             ;;
     esac
@@ -105,6 +109,35 @@ else
     echo "   brew install xcodegen"
     echo "   Oder stelle sicher, dass $PROJECT_FILE vorhanden ist."
     exit 1
+fi
+
+# Tests
+# Unit tests run on the host architecture only: the WhisperKit SPM dependency
+# ships arm64-only slices in Debug, so a universal test build cannot link.
+if [ "$RUN_TESTS_ONLY" = true ]; then
+    echo "🧪 Führe Unit-Tests aus ..."
+    TEST_LOG="$(mktemp -t blitztext-tests)"
+
+    set +e
+    xcodebuild test \
+        -project BlitztextMac.xcodeproj \
+        -scheme BlitztextMac \
+        -destination 'platform=macOS' \
+        -derivedDataPath "$DERIVED_DATA_PATH" \
+        ONLY_ACTIVE_ARCH=YES > "$TEST_LOG" 2>&1
+    TEST_STATUS=$?
+    set -e
+
+    grep -E "Test Suite '.*' (passed|failed)|Executed [0-9]+ test|error:" "$TEST_LOG" || true
+
+    if [ "$TEST_STATUS" -ne 0 ]; then
+        echo "❌ Tests fehlgeschlagen. Vollständiges Log: $TEST_LOG"
+        exit 1
+    fi
+
+    rm -f "$TEST_LOG"
+    echo "✅ Tests bestanden."
+    exit 0
 fi
 
 # Bauen

@@ -52,12 +52,5 @@ jobs:
         run: ./build.sh --debug
 
       - name: Unit tests
-        run: |
-          cd BlitztextMac
-          # Reuse build.sh's derived data so SPM packages are already resolved
-          xcodebuild test \
-            -project BlitztextMac.xcodeproj \
-            -scheme BlitztextMac \
-            -destination 'platform=macOS' \
-            -derivedDataPath "$HOME/Library/Caches/blitztext-build/derivedData" \
-            ONLY_ACTIVE_ARCH=YES 2>&1 | tail -40
+        # Reuses build.sh's derived data, so SPM packages are already resolved.
+        run: ./build.sh --test
