@@ -14,6 +14,9 @@ enum PopoverPage: Equatable {
 final class AppState {
     private static let pasteRetryInitialAttempts = 22
     private static let concealedPasteboardType = NSPasteboard.PasteboardType("org.nspasteboard.ConcealedType")
+    /// How long a previous paste stays a valid hint for the leading-space
+    /// fallback when the target exposes no Accessibility text info.
+    private static let consecutivePasteWindow: TimeInterval = 120
 
     var activeWorkflow: (any Workflow)?
     var page: PopoverPage = .main
@@ -41,6 +44,10 @@ final class AppState {
     private var pendingPasteText: String?
     /// The exact text written to the pasteboard for the current paste.
     private var lastFinalizedPasteText: String?
+    /// Where and when that text went — the leading-space fallback's only
+    /// evidence in apps the Accessibility API cannot read.
+    private var lastPasteProcessIdentifier: pid_t?
+    private var lastPasteDate: Date?
     private var clipboardClearTask: Task<Void, Never>?
 
     // Persisted settings
@@ -632,7 +639,7 @@ final class AppState {
 
         if let target {
             if frontmostPid == target.processIdentifier {
-                finalizePendingPasteForInsertion()
+                finalizePendingPasteForInsertion(target: target)
                 if performPaste(target: target) {
                     scheduleClipboardAutoClear()
                     return
@@ -671,16 +678,47 @@ final class AppState {
     /// Consecutive dictations would otherwise stick to the previous
     /// transcript's closing period: read the character before the cursor in
     /// the focused element and prepend a space when needed.
-    private func finalizePendingPasteForInsertion() {
+    private func finalizePendingPasteForInsertion(target: PasteTarget?) {
         guard let text = pendingPasteText else { return }
         pendingPasteText = nil
-        if PasteContextService.insertionNeedsLeadingSpace() {
+
+        let needsSpace: Bool
+        switch PasteContextService.insertionContext() {
+        case .needsLeadingSpace:
+            needsSpace = true
+        case .noLeadingSpaceNeeded:
+            needsSpace = false
+        case .unknown:
+            needsSpace = followsOwnRecentPaste(in: target)
+        }
+
+        if needsSpace {
             let spaced = " " + text
             writeSensitiveTextToPasteboard(spaced)
             lastFinalizedPasteText = spaced
         } else {
             lastFinalizedPasteText = text
         }
+
+        lastPasteProcessIdentifier = target?.processIdentifier
+        lastPasteDate = Date()
+    }
+
+    /// Fallback for targets that expose no usable Accessibility text info
+    /// (Mail's compose view, terminals — Safari and native text fields do).
+    /// If the previous transcript landed in the same app moments ago and did
+    /// not end in whitespace, the cursor is almost certainly still sitting
+    /// right behind it. The window keeps a much later dictation — likely a
+    /// fresh message or prompt — from inheriting a stale space.
+    private func followsOwnRecentPaste(in target: PasteTarget?) -> Bool {
+        guard let target,
+              lastPasteProcessIdentifier == target.processIdentifier,
+              let lastDate = lastPasteDate,
+              Date().timeIntervalSince(lastDate) < Self.consecutivePasteWindow,
+              let previous = lastFinalizedPasteText?.last else {
+            return false
+        }
+        return PasteContextService.needsLeadingSpace(after: previous)
     }
 
     /// Posts the synthetic Cmd+V. Returns false when the target lost
