@@ -40,13 +40,19 @@ final class TranscriptionWorkflow: Workflow {
         self.localModelName = localModelName
     }
 
+    /// The recorder starts before the phase flips: the phase change is what
+    /// drives the status indicator, and it reads `isRecording` synchronously —
+    /// announcing `.running` first would show the processing color for the
+    /// whole recording.
     func start() {
-        phase = .running("Aufnahme läuft ...")
         recorder.startRecording()
 
         if let error = recorder.errorMessage {
             phase = .error(error)
+            return
         }
+
+        phase = .running("Aufnahme läuft ...")
     }
 
     func stop() {

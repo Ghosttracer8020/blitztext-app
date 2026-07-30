@@ -36,10 +36,20 @@ final class AudioRecorder: NSObject, AVAudioRecorderDelegate {
         do {
             let fileURL = makeRecordingURL()
             currentFileURL = fileURL
-            audioRecorder = try AVAudioRecorder(url: fileURL, settings: settings)
-            audioRecorder?.delegate = self
-            audioRecorder?.isMeteringEnabled = true
-            audioRecorder?.record()
+            let recorder = try AVAudioRecorder(url: fileURL, settings: settings)
+            recorder.delegate = self
+            recorder.isMeteringEnabled = true
+            // record() can fail without throwing (input device busy, e.g. when
+            // the previous recording was torn down microseconds earlier).
+            // Silently ignoring it produced a zero-length recording that only
+            // surfaced later as "Keine Aufnahme erkannt.".
+            guard recorder.record() else {
+                currentFileURL = nil
+                try? FileManager.default.removeItem(at: fileURL)
+                errorMessage = "Mikrofon ist gerade nicht verfügbar."
+                return
+            }
+            audioRecorder = recorder
             isRecording = true
             startMetering()
         } catch {

@@ -31,13 +31,16 @@ final class EmojiTextWorkflow: Workflow {
 
     // MARK: - Workflow Protocol
 
+    /// Recorder first, phase second — see TranscriptionWorkflow.start().
     func start() {
-        phase = .running("Aufnahme l\u{00E4}uft ...")
         recorder.startRecording()
 
         if let error = recorder.errorMessage {
             phase = .error(error)
+            return
         }
+
+        phase = .running("Aufnahme l\u{00E4}uft ...")
     }
 
     func stop() {

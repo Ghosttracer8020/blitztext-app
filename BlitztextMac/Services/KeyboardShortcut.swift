@@ -81,6 +81,16 @@ struct KeyboardShortcut: Equatable {
         return sidesSatisfied(by: flags)
     }
 
+    /// Whether this modifier-only shortcut is `other` plus at least one further
+    /// modifier — i.e. `other` is a prefix of it (rAlt vs. rAlt+rCmd). Holding
+    /// such a prefix is ambiguous until the user either stops adding modifiers
+    /// or completes the longer chord.
+    func isMoreSpecificModifierOnlyVariant(of other: KeyboardShortcut) -> Bool {
+        guard isModifierOnly, other.isModifierOnly else { return false }
+        guard modifiers != other.modifiers else { return false }
+        return modifiers & other.modifiers == other.modifiers
+    }
+
     /// Whether the recorded modifiers are still held (combo-end detection).
     /// A shortcut without modifiers never ends via flagsChanged. Additional
     /// modifiers joining do NOT end the combo: an accidental Shift brush

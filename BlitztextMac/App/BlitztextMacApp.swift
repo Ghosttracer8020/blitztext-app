@@ -13,10 +13,16 @@ struct BlitztextMacApp: App {
 
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
+    /// How long a modifier-only shortcut that is the prefix of a longer chord
+    /// waits before it starts recording. Long enough to cover the gap between
+    /// two fingers landing, short enough to stay imperceptible.
+    private static let overlappingHoldStartGrace: Duration = .milliseconds(150)
+
     private var statusItem: NSStatusItem!
     private var popover: NSPopover!
     private let menuBarStatusController = MenuBarStatusController()
     private lazy var pillWindowController = PillWindowController(appState: appState)
+    private var pendingHoldStart: Task<Void, Never>?
     let appState = AppState()
 
     func applicationDidFinishLaunching(_ notification: Notification) {
@@ -134,12 +140,27 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
     private func handleHotkeyDown(_ type: WorkflowType) {
         guard appState.isConfigured else { return }
 
+        pendingHoldStart?.cancel()
+        pendingHoldStart = nil
+
         let mode = appState.appSettings.hotkeyMode
 
         switch mode {
         case .hold:
             // Hold mode: start recording on key down
-            appState.startWorkflow(type, source: .hotkeyBackground)
+            guard appState.hasMoreSpecificModifierOnlyOverlap(for: type) else {
+                appState.startWorkflow(type, source: .hotkeyBackground)
+                return
+            }
+            // The shortcut is a prefix of a longer chord — wait out the grace
+            // period so growing the chord never starts a recording that the
+            // following switch-over throws away again.
+            pendingHoldStart = Task { @MainActor [weak self] in
+                try? await Task.sleep(for: Self.overlappingHoldStartGrace)
+                guard let self, !Task.isCancelled else { return }
+                self.pendingHoldStart = nil
+                self.appState.startWorkflow(type, source: .hotkeyBackground)
+            }
 
         case .toggle:
             // Toggle mode: if already recording same workflow, stop it
@@ -156,6 +177,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
     }
 
     private func handleHotkeyUp(_ type: WorkflowType) {
+        // Released within the grace period: the press was shorter than the
+        // minimum usable recording anyway, so drop it instead of starting.
+        pendingHoldStart?.cancel()
+        pendingHoldStart = nil
+
         let mode = appState.appSettings.hotkeyMode
 
         guard mode == .hold else { return }
@@ -171,6 +197,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
     }
 
     private func handleHotkeyCancel() {
+        pendingHoldStart?.cancel()
+        pendingHoldStart = nil
         appState.activeWorkflow?.stop()
     }
 

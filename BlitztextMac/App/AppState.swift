@@ -276,6 +276,22 @@ final class AppState {
         page = source.presentsWorkflowPage ? .workflow : .main
     }
 
+    /// True when this workflow's shortcut is a modifier-only prefix of another
+    /// binding (e.g. rAlt for Blitztext+ vs. rAlt+rCmd for dictation). Pressing
+    /// the chord always passes through the prefix state for a few dozen
+    /// milliseconds, so starting instantly would record and immediately discard
+    /// a throwaway snippet — and that stop/start burst on the input device is
+    /// what intermittently kept the real recording from starting.
+    func hasMoreSpecificModifierOnlyOverlap(for type: WorkflowType) -> Bool {
+        guard let shortcut = appSettings.customShortcuts[type.rawValue],
+              shortcut.isModifierOnly else {
+            return false
+        }
+        return appSettings.customShortcuts.values.contains {
+            $0.isMoreSpecificModifierOnlyVariant(of: shortcut)
+        }
+    }
+
     func isWorkflowAvailable(_ type: WorkflowType) -> Bool {
         switch type {
         case .localTranscription:

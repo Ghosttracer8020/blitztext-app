@@ -89,6 +89,64 @@ final class KeyboardShortcutTests: XCTestCase {
         XCTAssertFalse(shortcut.requiredModifiersStillHeld(flags(shiftMask)), "option released")
     }
 
+    // MARK: - Prefix overlap (rAlt vs. rAlt+rCmd)
+
+    private var rightOptionOnly: KeyboardShortcut {
+        KeyboardShortcut(keyCode: nil, rawModifierFlags: optionMask | rightOption)
+    }
+
+    private var rightOptionCommandChord: KeyboardShortcut {
+        KeyboardShortcut(
+            keyCode: nil,
+            rawModifierFlags: optionMask | commandMask | rightOption | rightCommand
+        )
+    }
+
+    func testChordIsRecognizedAsMoreSpecificVariantOfItsPrefix() {
+        XCTAssertTrue(rightOptionCommandChord.isMoreSpecificModifierOnlyVariant(of: rightOptionOnly))
+        XCTAssertFalse(rightOptionOnly.isMoreSpecificModifierOnlyVariant(of: rightOptionCommandChord), "not the other way round")
+        XCTAssertFalse(rightOptionOnly.isMoreSpecificModifierOnlyVariant(of: rightOptionOnly), "identical is not more specific")
+    }
+
+    func testDisjointModifierOnlyShortcutsAreNotVariants() {
+        let rAltCtrl = KeyboardShortcut(keyCode: nil, rawModifierFlags: optionMask | KeyboardShortcut.controlMask | rightOption)
+        XCTAssertFalse(rAltCtrl.isMoreSpecificModifierOnlyVariant(of: rightOptionCommandChord))
+        XCTAssertFalse(rightOptionCommandChord.isMoreSpecificModifierOnlyVariant(of: rAltCtrl))
+    }
+
+    func testKeyedShortcutIsNeverAModifierOnlyVariant() {
+        let rAltK = KeyboardShortcut(keyCode: 40, rawModifierFlags: optionMask | commandMask | rightOption | rightCommand)
+        XCTAssertFalse(rAltK.isMoreSpecificModifierOnlyVariant(of: rightOptionOnly))
+    }
+
+    /// Regression guard for the switch-over bug: shrinking a held chord back to
+    /// its prefix state (releasing rCmd while rAlt is still down) matches the
+    /// shorter binding, so the tap must additionally require that the active
+    /// chord is still fully held before treating a match as an upgrade —
+    /// otherwise the finished recording is discarded instead of transcribed.
+    func testShrinkingChordStillMatchesShorterBindingButEndsTheCombo() {
+        let stateAfterReleasingCommand = flags(optionMask | rightOption)
+
+        XCTAssertTrue(
+            rightOptionOnly.matchesModifierState(stateAfterReleasingCommand),
+            "the shorter binding does match — which is why the upgrade path needs a growth guard"
+        )
+        XCTAssertFalse(
+            rightOptionCommandChord.requiredModifiersStillHeld(stateAfterReleasingCommand),
+            "the chord must count as ended, not as upgraded"
+        )
+    }
+
+    func testGrowingIntoChordKeepsPrefixHeldSoUpgradeStillFires() {
+        let stateAfterAddingCommand = flags(optionMask | commandMask | rightOption | rightCommand)
+
+        XCTAssertTrue(
+            rightOptionOnly.requiredModifiersStillHeld(stateAfterAddingCommand),
+            "the prefix is still held, so this is a genuine upgrade"
+        )
+        XCTAssertTrue(rightOptionCommandChord.matchesModifierState(stateAfterAddingCommand))
+    }
+
     // MARK: - Codable
 
     func testCodableRoundTrip() throws {

@@ -263,6 +263,11 @@ final class CustomHotkeyTapState: @unchecked Sendable {
         case .flagsChanged:
             if let combo = active {
                 if combo.shortcut.isModifierOnly,
+                   // Only a *growing* modifier set is an upgrade. Without this
+                   // guard, releasing one modifier of a chord (rAlt+rCmd ->
+                   // rAlt) matches the shorter binding and switches away,
+                   // discarding the finished recording instead of transcribing.
+                   combo.shortcut.requiredModifiersStillHeld(event.flags),
                    let upgrade = bindings.first(where: {
                        $0.shortcut.isModifierOnly
                            && $0.shortcut != combo.shortcut
