@@ -8,6 +8,7 @@ enum WorkflowType: String, CaseIterable, Identifiable, Codable {
     case textImprover
     case dampfAblassen
     case emojiText
+    case promptText
 
     var id: String { rawValue }
 
@@ -22,6 +23,7 @@ enum WorkflowType: String, CaseIterable, Identifiable, Codable {
         case .textImprover: return "Blitztext+"
         case .dampfAblassen: return "Blitztext $%&!"
         case .emojiText: return "Blitztext :)"
+        case .promptText: return "Blitztext Prompt"
         }
     }
 
@@ -32,6 +34,7 @@ enum WorkflowType: String, CaseIterable, Identifiable, Codable {
         case .textImprover: return "text.badge.checkmark"
         case .dampfAblassen: return "flame.fill"
         case .emojiText: return "face.smiling"
+        case .promptText: return "list.number"
         }
     }
 
@@ -42,6 +45,7 @@ enum WorkflowType: String, CaseIterable, Identifiable, Codable {
         case .textImprover: return "Geschrieben sprechen."
         case .dampfAblassen: return "Frust rein. Entspannt raus."
         case .emojiText: return "Text rein. Emojis dazu."
+        case .promptText: return "Gesprochen rein. Prompt raus."
         }
     }
 
@@ -52,6 +56,7 @@ enum WorkflowType: String, CaseIterable, Identifiable, Codable {
         case .textImprover: return "fn + Control"
         case .dampfAblassen: return "fn + Option"
         case .emojiText: return "fn + Cmd"
+        case .promptText: return "fn + Shift + Cmd"
         }
     }
 
@@ -62,6 +67,7 @@ enum WorkflowType: String, CaseIterable, Identifiable, Codable {
         case .textImprover: return "purple"
         case .dampfAblassen: return "orange"
         case .emojiText: return "cyan"
+        case .promptText: return "indigo"
         }
     }
 }
@@ -126,6 +132,7 @@ struct AppSettings: Codable {
         WorkflowType.dampfAblassen.rawValue: rightOptionShortcut(keyCode: 4),       // H
         WorkflowType.emojiText.rawValue: rightOptionShortcut(keyCode: 32),          // U
         WorkflowType.localTranscription.rawValue: rightOptionShortcut(keyCode: 37), // L
+        WorkflowType.promptText.rawValue: rightOptionShortcut(keyCode: 35),         // P
     ]
 
     private static func rightOptionShortcut(keyCode: Int) -> KeyboardShortcut {
@@ -215,6 +222,29 @@ enum TranscriptionBackend: String, Codable {
 
 struct TranscriptionSettings: Codable {
     var language: String = "de"
+    var emailParagraphsEnabled: Bool = true
+
+    init(
+        language: String = "de",
+        emailParagraphsEnabled: Bool = true
+    ) {
+        self.language = language
+        self.emailParagraphsEnabled = emailParagraphsEnabled
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case language
+        case emailParagraphsEnabled
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        language = try container.decodeIfPresent(String.self, forKey: .language) ?? "de"
+        emailParagraphsEnabled = try container.decodeIfPresent(
+            Bool.self,
+            forKey: .emailParagraphsEnabled
+        ) ?? true
+    }
 }
 
 struct DampfAblassenSettings: Codable {
@@ -240,6 +270,35 @@ struct EmojiTextSettings: Codable {
             case .viel: return "Viel"
             }
         }
+    }
+}
+
+struct PromptTextSettings: Codable {
+    var systemPrompt: String = ""
+    var outputLanguage: PromptOutputLanguage = .spoken
+    var customName: String = ""
+
+    init(
+        systemPrompt: String = "",
+        outputLanguage: PromptOutputLanguage = .spoken,
+        customName: String = ""
+    ) {
+        self.systemPrompt = systemPrompt
+        self.outputLanguage = outputLanguage
+        self.customName = customName
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case systemPrompt
+        case outputLanguage
+        case customName
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        systemPrompt = try container.decodeIfPresent(String.self, forKey: .systemPrompt) ?? ""
+        outputLanguage = try container.decodeIfPresent(PromptOutputLanguage.self, forKey: .outputLanguage) ?? .spoken
+        customName = try container.decodeIfPresent(String.self, forKey: .customName) ?? ""
     }
 }
 

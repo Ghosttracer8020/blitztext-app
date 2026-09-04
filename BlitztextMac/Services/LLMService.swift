@@ -22,7 +22,7 @@ enum LLMError: LocalizedError {
 
 enum RewriteModel: String {
     case fastEdit = "gpt-4.1-mini"
-    case rageMode = "gpt-4.1"
+    case quality = "gpt-4.1"
 }
 
 private struct OpenAIChatRequest: Encodable {
@@ -84,7 +84,7 @@ enum LLMService {
     static func dampfAblassen(
         text: String,
         systemPrompt: String,
-        model: RewriteModel = .rageMode
+        model: RewriteModel = .quality
     ) async throws -> String {
         try await complete(
             text: text,
@@ -102,6 +102,24 @@ enum LLMService {
         try await complete(
             text: text,
             systemPrompt: buildEmojiSystemPrompt(density: settings.emojiDensity),
+            model: model,
+            temperature: 0.3
+        )
+    }
+
+    static func craftPrompt(
+        text: String,
+        settings: PromptTextSettings,
+        customTerms: [String],
+        model: RewriteModel = .quality
+    ) async throws -> String {
+        try await complete(
+            text: text,
+            systemPrompt: PromptTextPromptBuilder.systemPrompt(
+                customInstruction: settings.systemPrompt,
+                outputLanguage: settings.outputLanguage,
+                customTerms: customTerms
+            ),
             model: model,
             temperature: 0.3
         )

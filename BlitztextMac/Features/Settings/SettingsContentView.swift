@@ -684,6 +684,19 @@ struct CustomizeSettingsView: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
 
+            // MARK: Blitztext
+            VStack(alignment: .leading, spacing: 10) {
+                SectionLabel(text: "Blitztext")
+
+                Toggle("E-Mail-Abs\u{00E4}tze automatisch setzen", isOn: $appState.transcriptionSettings.emailParagraphsEnabled)
+                    .font(.system(size: 11.5))
+
+                Text("Erkennt Begr\u{00FC}\u{00DF}ung (\u{201E}Hallo Thomas,\u{201C}) und Verabschiedung (\u{201E}Viele Gr\u{00FC}\u{00DF}e Ben\u{201C}) im Diktat und setzt dort Abs\u{00E4}tze. L\u{00E4}uft lokal auf dem Mac, der Wortlaut bleibt unver\u{00E4}ndert.")
+                    .font(.system(size: 10.5))
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
             // MARK: Blitztext+
             VStack(alignment: .leading, spacing: 10) {
                 SectionLabel(text: "Blitztext+")
@@ -784,6 +797,53 @@ struct CustomizeSettingsView: View {
                     }
                     .pickerStyle(.segmented)
                 }
+            }
+
+            // MARK: Blitztext Prompt
+            VStack(alignment: .leading, spacing: 10) {
+                SectionLabel(text: "Blitztext Prompt")
+
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Sprache des Prompts")
+                        .font(.system(size: 11))
+                        .foregroundStyle(.secondary)
+
+                    Picker("", selection: $appState.promptTextSettings.outputLanguage) {
+                        ForEach(PromptOutputLanguage.allCases) { language in
+                            Text(language.displayName).tag(language)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+                }
+
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Eigene Anweisung")
+                        .font(.system(size: 11))
+                        .foregroundStyle(.secondary)
+
+                    TextEditor(text: $appState.promptTextSettings.systemPrompt)
+                        .font(.system(size: 11))
+                        .frame(height: 80)
+                        .scrollContentBackground(.hidden)
+                        .padding(8)
+                        .background(Color.primary.opacity(0.03), in: RoundedRectangle(cornerRadius: 6))
+                        .overlay(RoundedRectangle(cornerRadius: 6).strokeBorder(Color.primary.opacity(0.06), lineWidth: 0.5))
+                        .overlay(alignment: .topLeading) {
+                            if appState.promptTextSettings.systemPrompt.isEmpty {
+                                Text("z.B. \"Formuliere Prompts immer f\u{00FC}r Claude Code, mit Dateipfaden.\"")
+                                    .font(.system(size: 11))
+                                    .foregroundStyle(.quaternary)
+                                    .padding(.horizontal, 12)
+                                    .padding(.vertical, 12)
+                                    .allowsHitTesting(false)
+                            }
+                        }
+                }
+
+                Text("Leer = eingebaute Anweisung: nummerierte Liste, nichts dazuerfinden. Eine eigene Anweisung ersetzt sie komplett; die Eigennamen-Liste wird angeh\u{00E4}ngt.")
+                    .font(.system(size: 10.5))
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
             }
 
             // MARK: Eigennamen

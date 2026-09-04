@@ -10,10 +10,11 @@ This is a learning and experimentation project, not a polished product.
 
 ## What It Does
 
-- **Blitztext**: record speech and transcribe it.
+- **Blitztext**: record speech and transcribe it; optional email paragraphing (greeting/sign-off) is applied on-device, no extra API call.
 - **Blitztext+**: record speech, transcribe it, then turn the rough draft into cleaner writing.
 - **Blitztext $%&!**: turn frustrated speech into a calmer message.
 - **Blitztext :)**: add fitting emojis to dictated text.
+- **Blitztext Prompt**: turn spoken instructions into a structured prompt with numbered points you can refer back to.
 
 ## Important Preview Notes
 
@@ -49,8 +50,8 @@ The intent is not to ship a one-click finished app. The intent is to make a real
 - Xcode 16 or newer (Swift 5.10), with Command Line Tools installed and selected for `xcodebuild`
 - [XcodeGen](https://github.com/yonaskolb/XcodeGen) to generate the Xcode project
 - For online transcription and rewriting: an OpenAI API key with access to:
-  - `whisper-1` for transcription
-  - `gpt-4o-mini` and optionally `gpt-4o` for rewriting
+  - `gpt-4o-mini-transcribe` for transcription
+  - `gpt-4.1-mini` and optionally `gpt-4.1` for rewriting
 - For local-only transcription: a WhisperKit CoreML model in:
   `~/Library/Application Support/Blitztext/models/whisperkit/`
 

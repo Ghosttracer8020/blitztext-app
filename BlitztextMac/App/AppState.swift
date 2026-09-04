@@ -70,6 +70,9 @@ final class AppState {
     var emojiTextSettings: EmojiTextSettings {
         didSet { saveSettings() }
     }
+    var promptTextSettings: PromptTextSettings {
+        didSet { saveSettings() }
+    }
 
     // Hotkeys
     let hotkeyService = HotkeyService()
@@ -93,6 +96,7 @@ final class AppState {
         self.textImprovementSettings = Self.loadTextImprovementSettings()
         self.dampfAblassenSettings = Self.loadDampfAblassenSettings()
         self.emojiTextSettings = Self.loadEmojiTextSettings()
+        self.promptTextSettings = Self.loadPromptTextSettings()
         refreshAccessibilityPermission()
         autoSelectFastLocalModelIfNeeded()
         prewarmLocalTranscriptionIfNeeded()
@@ -153,6 +157,9 @@ final class AppState {
         case .emojiText:
             let name = emojiTextSettings.customName.trimmingCharacters(in: .whitespaces)
             return name.isEmpty ? type.displayName : name
+        case .promptText:
+            let name = promptTextSettings.customName.trimmingCharacters(in: .whitespaces)
+            return name.isEmpty ? type.displayName : name
         default:
             return type.displayName
         }
@@ -176,7 +183,7 @@ final class AppState {
             return "Online: Whisper über OpenAI."
         case .localTranscription:
             return "Nur lokal. Kein Server."
-        case .textImprover, .dampfAblassen, .emojiText:
+        case .textImprover, .dampfAblassen, .emojiText, .promptText:
             if appSettings.secureLocalModeEnabled {
                 return "Im lokalen Modus pausiert."
             }
@@ -232,7 +239,8 @@ final class AppState {
                 customTerms: textImprovementSettings.customTerms,
                 language: transcriptionSettings.language,
                 backend: appSettings.secureLocalModeEnabled ? .local : .remote,
-                localModelName: selectedLocalModelName
+                localModelName: selectedLocalModelName,
+                emailParagraphsEnabled: transcriptionSettings.emailParagraphsEnabled
             )
             configureWorkflowHandlers(workflow)
             activeWorkflow = workflow
@@ -244,7 +252,8 @@ final class AppState {
                 customTerms: textImprovementSettings.customTerms,
                 language: transcriptionSettings.language,
                 backend: .local,
-                localModelName: selectedLocalModelName
+                localModelName: selectedLocalModelName,
+                emailParagraphsEnabled: transcriptionSettings.emailParagraphsEnabled
             )
             configureWorkflowHandlers(workflow)
             activeWorkflow = workflow
@@ -272,6 +281,16 @@ final class AppState {
         case .emojiText:
             let workflow = EmojiTextWorkflow(
                 settings: emojiTextSettings,
+                customTerms: textImprovementSettings.customTerms,
+                language: transcriptionSettings.language
+            )
+            configureWorkflowHandlers(workflow)
+            activeWorkflow = workflow
+            workflow.start()
+
+        case .promptText:
+            let workflow = PromptTextWorkflow(
+                settings: promptTextSettings,
                 customTerms: textImprovementSettings.customTerms,
                 language: transcriptionSettings.language
             )
@@ -307,7 +326,7 @@ final class AppState {
             return appSettings.secureLocalModeEnabled
                 ? selectedLocalModelIsInstalled
                 : KeychainService.isConfigured
-        case .textImprover, .dampfAblassen, .emojiText:
+        case .textImprover, .dampfAblassen, .emojiText, .promptText:
             return !appSettings.secureLocalModeEnabled && KeychainService.isConfigured
         }
     }
@@ -458,7 +477,8 @@ final class AppState {
             transcription: transcriptionSettings,
             textImprovement: textImprovementSettings,
             dampfAblassen: dampfAblassenSettings,
-            emojiText: emojiTextSettings
+            emojiText: emojiTextSettings,
+            promptText: promptTextSettings
         )
         if let data = try? JSONEncoder().encode(container) {
             try? data.write(to: Self.settingsURL)
@@ -483,6 +503,10 @@ final class AppState {
 
     private static func loadEmojiTextSettings() -> EmojiTextSettings {
         loadContainer()?.emojiText ?? EmojiTextSettings()
+    }
+
+    private static func loadPromptTextSettings() -> PromptTextSettings {
+        loadContainer()?.promptText ?? PromptTextSettings()
     }
 
     private static func loadContainer() -> SettingsContainer? {
@@ -791,6 +815,7 @@ private struct SettingsContainer: Codable {
     var textImprovement: TextImprovementSettings
     var dampfAblassen: DampfAblassenSettings?
     var emojiText: EmojiTextSettings?
+    var promptText: PromptTextSettings?
 }
 
 // MARK: - Notification for Popover Dismissal

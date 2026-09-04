@@ -189,6 +189,8 @@ private enum MenuBarStatusIconRenderer {
                 values = [1.0, 0.76, 0.94, 0.68]
             case .emojiText:
                 values = [0.8, 0.92, 0.7, 1.0]
+            case .promptText:
+                values = [0.7, 1.0, 0.84, 0.9]
             }
             badgeOpacity = values[frame % values.count]
             haloOpacity = 0.14 + (CGFloat(frame % 4) * 0.04)
@@ -203,6 +205,8 @@ private enum MenuBarStatusIconRenderer {
                 values = [0.84, 0.62, 0.9, 0.56]
             case .emojiText:
                 values = [0.54, 0.76, 0.88, 0.68]
+            case .promptText:
+                values = [0.6, 0.82, 0.94, 0.72]
             }
             badgeOpacity = values[frame % values.count]
             haloOpacity = 0.12 + (CGFloat((frame + 2) % 4) * 0.03)
@@ -316,6 +320,14 @@ private enum MenuBarStatusIconRenderer {
                 [0.36, 0.58, 0.84, 1.0],
             ]
             return patterns[frame % patterns.count]
+        case .promptText:
+            let patterns: [[CGFloat]] = [
+                [1.0, 0.56, 0.34, 0.2],
+                [0.7, 1.0, 0.6, 0.32],
+                [0.44, 0.74, 1.0, 0.56],
+                [0.3, 0.5, 0.78, 1.0],
+            ]
+            return patterns[frame % patterns.count]
         }
     }
 
@@ -353,6 +365,14 @@ private enum MenuBarStatusIconRenderer {
                 [0.6, 0.76, 0.92, 1.0],
             ]
             return patterns[frame % patterns.count]
+        case .promptText:
+            let patterns: [[CGFloat]] = [
+                [1.0, 0.62, 0.4, 0.26],
+                [0.8, 1.0, 0.66, 0.38],
+                [0.6, 0.82, 1.0, 0.6],
+                [0.42, 0.6, 0.86, 1.0],
+            ]
+            return patterns[frame % patterns.count]
         }
     }
 
@@ -368,6 +388,8 @@ private enum MenuBarStatusIconRenderer {
             return "flame.fill"
         case .emojiText:
             return "face.smiling"
+        case .promptText:
+            return "list.number"
         }
     }
 

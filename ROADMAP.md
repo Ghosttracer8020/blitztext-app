@@ -7,7 +7,7 @@ This is a preview roadmap, not a promise.
 - macOS menubar app
 - local recording and hotkeys
 - direct OpenAI API calls with a user-provided API key
-- transcription, rewriting, calmer-message, and emoji workflows
+- transcription, rewriting, calmer-message, emoji, and prompt-crafting workflows
 - no hosted backend
 - no other platforms
 - no packaged public release

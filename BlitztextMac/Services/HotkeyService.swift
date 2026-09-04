@@ -92,6 +92,15 @@ final class HotkeyService {
             return
         }
 
+        // fn + Shift + Command -> Prompt Mode
+        if flags == [.function, .shift, .command] {
+            if activeCombo == nil {
+                activeCombo = .promptText
+                onHotkeyEvent?(.down(.promptText))
+            }
+            return
+        }
+
         // fn + Shift -> transcription
         if flags == [.function, .shift] {
             if activeCombo == nil {

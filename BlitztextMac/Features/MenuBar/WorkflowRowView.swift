@@ -35,6 +35,7 @@ struct WorkflowRowView: View {
                         .font(.system(size: 11))
                         .foregroundStyle(enabled ? .secondary : .quaternary)
                         .lineLimit(1)
+                        .minimumScaleFactor(0.75)
                 }
 
                 Spacer()

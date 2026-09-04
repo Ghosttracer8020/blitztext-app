@@ -78,6 +78,8 @@ targets:
       - path: Services/KeyboardShortcut.swift
       - path: Services/TranscriptionQualityService.swift
       - path: Services/PasteContextService.swift
+      - path: Services/PromptTextPromptBuilder.swift
+      - path: Services/EmailParagraphFormatter.swift
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: app.blitztext.mac.tests

@@ -29,7 +29,7 @@ Settings such as custom prompts, custom terms, and context are stored in local a
 
 ## Offline Scope
 
-Only transcription can run locally. Any workflow that rewrites, improves, or transforms text still uses OpenAI.
+Only transcription can run locally. Any workflow that rewrites, improves, or transforms text still uses OpenAI. Email paragraph formatting for plain dictation is a local text transformation and does not call any API.
 
 ## Sensitive Content
 

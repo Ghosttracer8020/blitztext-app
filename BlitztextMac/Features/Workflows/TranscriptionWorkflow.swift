@@ -24,6 +24,7 @@ final class TranscriptionWorkflow: Workflow {
     private let language: String
     private let backend: TranscriptionBackend
     private let localModelName: String
+    private let emailParagraphsEnabled: Bool
     private var transcriptionTask: Task<Void, Never>?
 
     init(
@@ -31,13 +32,15 @@ final class TranscriptionWorkflow: Workflow {
         customTerms: [String] = [],
         language: String = "de",
         backend: TranscriptionBackend = .remote,
-        localModelName: String = LocalTranscriptionService.recommendedFastModelName
+        localModelName: String = LocalTranscriptionService.recommendedFastModelName,
+        emailParagraphsEnabled: Bool = true
     ) {
         self.type = type
         self.customTerms = customTerms
         self.language = language
         self.backend = backend
         self.localModelName = localModelName
+        self.emailParagraphsEnabled = emailParagraphsEnabled
     }
 
     /// The recorder starts before the phase flips: the phase change is what
@@ -131,8 +134,9 @@ final class TranscriptionWorkflow: Workflow {
                 transcriptionLogger.info(
                     "Transcription ready in \(elapsedMilliseconds(since: stopTime, until: responseReceivedAt)) ms (request \(elapsedMilliseconds(since: requestStart, until: responseReceivedAt)) ms)"
                 )
-                phase = .done(cleaned)
-                onOutput?(cleaned)
+                let output = emailParagraphsEnabled ? EmailParagraphFormatter.format(cleaned) : cleaned
+                phase = .done(output)
+                onOutput?(output)
             } catch {
                 transcriptionLogger.error(
                     "Transcription failed after \(elapsedMilliseconds(since: stopTime)) ms: \(error.localizedDescription, privacy: .private)"

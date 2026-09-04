@@ -37,9 +37,9 @@ Open the app settings and paste your own OpenAI API key if you want online trans
 
 The preview currently uses:
 
-- `whisper-1` for transcription
-- `gpt-4o-mini` for lightweight rewriting
-- `gpt-4o` for the calmer-message workflow
+- `gpt-4o-mini-transcribe` for transcription
+- `gpt-4.1-mini` for lightweight rewriting
+- `gpt-4.1` for the calmer-message and prompt workflows
 
 You are responsible for API access, billing, and data handling in your own OpenAI account.
 
