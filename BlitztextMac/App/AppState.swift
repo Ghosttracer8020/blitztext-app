@@ -56,6 +56,7 @@ final class AppState {
             saveSettings()
             prewarmLocalTranscriptionIfNeeded()
             customHotkeyService.updateBindings(appSettings.customShortcuts)
+            hotkeyService.updateCustomShortcuts(appSettings.customShortcuts)
         }
     }
     var transcriptionSettings: TranscriptionSettings {
@@ -101,6 +102,7 @@ final class AppState {
         autoSelectFastLocalModelIfNeeded()
         prewarmLocalTranscriptionIfNeeded()
         customHotkeyService.updateBindings(appSettings.customShortcuts)
+        hotkeyService.updateCustomShortcuts(appSettings.customShortcuts)
     }
 
     // MARK: - Shortcut Recording
@@ -166,9 +168,35 @@ final class AppState {
     }
 
     /// Effective hotkey label for menu rows: the user's recorded shortcut if
-    /// set, otherwise the built-in fn combo.
-    func hotkeyLabel(for type: WorkflowType) -> String {
-        appSettings.customShortcuts[type.rawValue]?.displayString ?? type.hotkeyLabel
+    /// set, otherwise the built-in fn combo — but only while that combo is
+    /// still active. A built-in combo claimed by a custom shortcut with the
+    /// same modifiers no longer fires (see `BuiltInHotkey`), so nil is
+    /// returned and the row shows no badge instead of a dead key hint.
+    func hotkeyLabel(for type: WorkflowType) -> String? {
+        if let shortcut = appSettings.customShortcuts[type.rawValue] {
+            return shortcut.displayString
+        }
+        guard let hotkey = BuiltInHotkey.hotkey(forWorkflowID: type.rawValue),
+              BuiltInHotkey.claimant(of: hotkey, in: appSettings.customShortcuts) == nil else {
+            return nil
+        }
+        return hotkey.label
+    }
+
+    /// Label of a workflow's built-in fn combo, regardless of whether it is
+    /// still active — the settings list shows claimed combos struck through.
+    func builtInHotkeyLabel(for type: WorkflowType) -> String? {
+        BuiltInHotkey.label(forWorkflowID: type.rawValue)
+    }
+
+    /// The workflow whose recorded shortcut switched off this workflow's
+    /// built-in fn combo, or nil while the combo is still active.
+    func builtInHotkeyClaimant(for type: WorkflowType) -> WorkflowType? {
+        guard let hotkey = BuiltInHotkey.hotkey(forWorkflowID: type.rawValue),
+              let claimantID = BuiltInHotkey.claimant(of: hotkey, in: appSettings.customShortcuts) else {
+            return nil
+        }
+        return WorkflowType(rawValue: claimantID)
     }
 
     func workflowSubtitle(for type: WorkflowType) -> String {

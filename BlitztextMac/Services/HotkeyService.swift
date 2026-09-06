@@ -39,6 +39,14 @@ final class HotkeyService {
     private var localMonitor: Any?
     private var keyMonitor: Any?
     private var activeCombo: WorkflowType?  // Which combo is currently held
+    /// Built-in fn combos that are currently active, keyed by the raw value
+    /// of their exact `NSEvent.ModifierFlags` set (`NSEvent.ModifierFlags`
+    /// itself is not Hashable, so it cannot be a dictionary key). Starts with
+    /// all six (upstream behaviour) until `updateCustomShortcuts` first runs;
+    /// a recorded shortcut with the same modifiers removes the entry, see
+    /// `BuiltInHotkey`.
+    private var comboTable: [UInt: WorkflowType] =
+        HotkeyService.makeComboTable(from: BuiltInHotkey.all)
 
     var onHotkeyEvent: ((HotkeyEvent) -> Void)?
     /// Set while the settings UI records a new shortcut.
@@ -66,6 +74,30 @@ final class HotkeyService {
         }
     }
 
+    /// Recomputes the active built-in combos from the user's recorded
+    /// shortcuts. Call whenever `AppSettings.customShortcuts` changes.
+    func updateCustomShortcuts(_ shortcuts: [String: KeyboardShortcut]) {
+        comboTable = Self.makeComboTable(from: BuiltInHotkey.active(customShortcuts: shortcuts))
+    }
+
+    /// Maps the generic CGEventFlags bits of the built-in combos to their
+    /// AppKit counterparts explicitly — the two bit layouts are not
+    /// interchangeable, so no raw-value casting here.
+    private static func makeComboTable(from hotkeys: [BuiltInHotkey]) -> [UInt: WorkflowType] {
+        var table: [UInt: WorkflowType] = [:]
+        for hotkey in hotkeys {
+            guard let type = WorkflowType(rawValue: hotkey.workflowID) else { continue }
+            var flags: NSEvent.ModifierFlags = []
+            if hotkey.modifiers & KeyboardShortcut.fnMask != 0 { flags.insert(.function) }
+            if hotkey.modifiers & KeyboardShortcut.commandMask != 0 { flags.insert(.command) }
+            if hotkey.modifiers & KeyboardShortcut.shiftMask != 0 { flags.insert(.shift) }
+            if hotkey.modifiers & KeyboardShortcut.optionMask != 0 { flags.insert(.option) }
+            if hotkey.modifiers & KeyboardShortcut.controlMask != 0 { flags.insert(.control) }
+            table[flags.rawValue] = type
+        }
+        return table
+    }
+
     func stop() {
         if let globalMonitor { NSEvent.removeMonitor(globalMonitor) }
         if let localMonitor { NSEvent.removeMonitor(localMonitor) }
@@ -83,56 +115,11 @@ final class HotkeyService {
 
         let flags = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
 
-        // fn + Shift + Control -> local transcription
-        if flags == [.function, .shift, .control] {
+        // Exact match against the active built-in combos
+        if let type = comboTable[flags.rawValue] {
             if activeCombo == nil {
-                activeCombo = .localTranscription
-                onHotkeyEvent?(.down(.localTranscription))
-            }
-            return
-        }
-
-        // fn + Shift + Command -> Prompt Mode
-        if flags == [.function, .shift, .command] {
-            if activeCombo == nil {
-                activeCombo = .promptText
-                onHotkeyEvent?(.down(.promptText))
-            }
-            return
-        }
-
-        // fn + Shift -> transcription
-        if flags == [.function, .shift] {
-            if activeCombo == nil {
-                activeCombo = .transcription
-                onHotkeyEvent?(.down(.transcription))
-            }
-            return
-        }
-
-        // fn + Control -> Textverbesserer
-        if flags == [.function, .control] {
-            if activeCombo == nil {
-                activeCombo = .textImprover
-                onHotkeyEvent?(.down(.textImprover))
-            }
-            return
-        }
-
-        // fn + Option -> Rage Mode
-        if flags == [.function, .option] {
-            if activeCombo == nil {
-                activeCombo = .dampfAblassen
-                onHotkeyEvent?(.down(.dampfAblassen))
-            }
-            return
-        }
-
-        // fn + Command -> Emoji Mode
-        if flags == [.function, .command] {
-            if activeCombo == nil {
-                activeCombo = .emojiText
-                onHotkeyEvent?(.down(.emojiText))
+                activeCombo = type
+                onHotkeyEvent?(.down(type))
             }
             return
         }

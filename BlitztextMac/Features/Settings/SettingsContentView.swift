@@ -612,18 +612,33 @@ struct CustomizeSettingsView: View {
                 SectionLabel(text: "Tastenk\u{00FC}rzel")
 
                 VStack(alignment: .leading, spacing: 6) {
-                    Text("Fest eingebaut (zus\u{00E4}tzlich aktiv)")
+                    Text("Fest eingebaut (zus\u{00E4}tzlich aktiv) \u{2014} ein eigenes K\u{00FC}rzel mit denselben Modifiern ersetzt das eingebaute")
                         .font(.system(size: 11))
                         .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
                     ForEach(WorkflowType.mainMenuCases) { type in
-                        HStack {
-                            Text(type.hotkeyLabel)
-                                .font(.system(size: 11, design: .monospaced))
-                                .foregroundStyle(.secondary)
-                                .frame(width: 124, alignment: .leading)
-                            Text(appState.displayName(for: type))
-                                .font(.system(size: 11.5, weight: .medium))
-                            Spacer()
+                        if let builtInLabel = appState.builtInHotkeyLabel(for: type) {
+                            let claimant = appState.builtInHotkeyClaimant(for: type)
+                            HStack {
+                                Text(builtInLabel)
+                                    .font(.system(size: 11, design: .monospaced))
+                                    .foregroundStyle(claimant == nil ? .secondary : .tertiary)
+                                    .strikethrough(claimant != nil)
+                                    .frame(width: 124, alignment: .leading)
+                                Text(appState.displayName(for: type))
+                                    .font(.system(size: 11.5, weight: .medium))
+                                    .foregroundStyle(claimant == nil ? .primary : .tertiary)
+                                if let claimant {
+                                    // A workflow can claim its own built-in combo; naming
+                                    // itself as the claimant would read like a bug.
+                                    Text(claimant == type
+                                         ? "durch eigenes K\u{00FC}rzel ersetzt"
+                                         : "belegt durch \(appState.displayName(for: claimant))")
+                                        .font(.system(size: 10.5))
+                                        .foregroundStyle(.secondary)
+                                }
+                                Spacer()
+                            }
                         }
                     }
                 }

@@ -76,6 +76,7 @@ targets:
     sources:
       - path: Tests
       - path: Services/KeyboardShortcut.swift
+      - path: Services/BuiltInHotkeys.swift
       - path: Services/TranscriptionQualityService.swift
       - path: Services/PasteContextService.swift
       - path: Services/PromptTextPromptBuilder.swift
