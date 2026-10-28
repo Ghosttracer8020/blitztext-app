@@ -9,6 +9,7 @@ enum WorkflowType: String, CaseIterable, Identifiable, Codable {
     case dampfAblassen
     case emojiText
     case promptText
+    case mailReply
 
     var id: String { rawValue }
 
@@ -24,6 +25,7 @@ enum WorkflowType: String, CaseIterable, Identifiable, Codable {
         case .dampfAblassen: return "Blitztext $%&!"
         case .emojiText: return "Blitztext :)"
         case .promptText: return "Blitztext Prompt"
+        case .mailReply: return "Blitztext Mail"
         }
     }
 
@@ -35,6 +37,7 @@ enum WorkflowType: String, CaseIterable, Identifiable, Codable {
         case .dampfAblassen: return "flame.fill"
         case .emojiText: return "face.smiling"
         case .promptText: return "list.number"
+        case .mailReply: return "envelope.fill"
         }
     }
 
@@ -46,6 +49,7 @@ enum WorkflowType: String, CaseIterable, Identifiable, Codable {
         case .dampfAblassen: return "Frust rein. Entspannt raus."
         case .emojiText: return "Text rein. Emojis dazu."
         case .promptText: return "Gesprochen rein. Prompt raus."
+        case .mailReply: return "Stichpunkte rein. Antwort raus."
         }
     }
 
@@ -57,6 +61,7 @@ enum WorkflowType: String, CaseIterable, Identifiable, Codable {
         case .dampfAblassen: return "orange"
         case .emojiText: return "cyan"
         case .promptText: return "indigo"
+        case .mailReply: return "teal"
         }
     }
 }
@@ -122,6 +127,7 @@ struct AppSettings: Codable {
         WorkflowType.emojiText.rawValue: rightOptionShortcut(keyCode: 32),          // U
         WorkflowType.localTranscription.rawValue: rightOptionShortcut(keyCode: 37), // L
         WorkflowType.promptText.rawValue: rightOptionShortcut(keyCode: 35),         // P
+        WorkflowType.mailReply.rawValue: MailReplyShortcutMigration.defaultShortcut, // M
     ]
 
     private static func rightOptionShortcut(keyCode: Int) -> KeyboardShortcut {
@@ -139,6 +145,8 @@ struct AppSettings: Codable {
     var hasAutoSelectedFastLocalModel: Bool = false
     var customShortcuts: [String: KeyboardShortcut] = AppSettings.defaultCustomShortcuts
     var clipboardAutoClearEnabled: Bool = true
+    /// True once the Blitztext Mail shortcut was offered to this profile.
+    var hasMigratedMailReplyShortcut: Bool = true
 
     init(
         hotkeyMode: HotkeyMode = .hold,
@@ -147,7 +155,8 @@ struct AppSettings: Codable {
         selectedLocalTranscriptionModelName: String = LocalTranscriptionService.recommendedFastModelName,
         hasAutoSelectedFastLocalModel: Bool = false,
         customShortcuts: [String: KeyboardShortcut] = AppSettings.defaultCustomShortcuts,
-        clipboardAutoClearEnabled: Bool = true
+        clipboardAutoClearEnabled: Bool = true,
+        hasMigratedMailReplyShortcut: Bool = true
     ) {
         self.hotkeyMode = hotkeyMode
         self.hasSeenOnboarding = hasSeenOnboarding
@@ -156,6 +165,7 @@ struct AppSettings: Codable {
         self.hasAutoSelectedFastLocalModel = hasAutoSelectedFastLocalModel
         self.customShortcuts = customShortcuts
         self.clipboardAutoClearEnabled = clipboardAutoClearEnabled
+        self.hasMigratedMailReplyShortcut = hasMigratedMailReplyShortcut
     }
 
     enum CodingKeys: String, CodingKey {
@@ -166,6 +176,7 @@ struct AppSettings: Codable {
         case hasAutoSelectedFastLocalModel
         case customShortcuts
         case clipboardAutoClearEnabled
+        case hasMigratedMailReplyShortcut
     }
 
     /// Legacy key from the first hotkey iteration (right-Option letter map).
@@ -187,14 +198,22 @@ struct AppSettings: Codable {
             forKey: .hasAutoSelectedFastLocalModel
         ) ?? false
 
-        if let stored = try container.decodeIfPresent([String: KeyboardShortcut].self, forKey: .customShortcuts) {
-            customShortcuts = stored
+        let stored: [String: KeyboardShortcut]?
+        if let decoded = try container.decodeIfPresent([String: KeyboardShortcut].self, forKey: .customShortcuts) {
+            stored = decoded
         } else if let legacyContainer = try? decoder.container(keyedBy: LegacyCodingKeys.self),
                   let legacy = try legacyContainer.decodeIfPresent([String: Int].self, forKey: .rightOptionHotkeys) {
-            customShortcuts = legacy.mapValues { Self.rightOptionShortcut(keyCode: $0) }
+            stored = legacy.mapValues { Self.rightOptionShortcut(keyCode: $0) }
         } else {
-            customShortcuts = AppSettings.defaultCustomShortcuts
+            stored = nil
         }
+        let resolved = MailReplyShortcutMigration.resolve(
+            stored: stored,
+            alreadyMigrated: try container.decodeIfPresent(Bool.self, forKey: .hasMigratedMailReplyShortcut) ?? false,
+            defaults: AppSettings.defaultCustomShortcuts
+        )
+        customShortcuts = resolved.shortcuts
+        hasMigratedMailReplyShortcut = resolved.migrated
         clipboardAutoClearEnabled = try container.decodeIfPresent(
             Bool.self,
             forKey: .clipboardAutoClearEnabled

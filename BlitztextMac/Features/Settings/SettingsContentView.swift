@@ -57,17 +57,23 @@ private struct SectionLabel: View {
 
 struct AccessSettingsView: View {
     private static let openAIAPIKeyPattern = #"^sk-[A-Za-z0-9_-]{20,}$"#
+    private static let anthropicAPIKeyPattern = #"^sk-ant-[A-Za-z0-9_-]{20,}$"#
 
     @Bindable var appState: AppState
 
     private enum FieldFocus {
         case openAIAPIKey
+        case anthropicAPIKey
     }
 
     @State private var launchAtLoginService = LaunchAtLoginService()
     @State private var currentInstallLocation = BlitztextInstallLocationService.currentInstallLocation
     @State private var openAIAPIKey = ""
     @State private var editingAPIKey = false
+    @State private var anthropicAPIKey = ""
+    @State private var editingAnthropicKey = false
+    @State private var anthropicKeyStatusText: String?
+    @State private var anthropicKeyErrorText: String?
     @State private var saved = false
     @State private var saveErrorText: String?
     @State private var saveWarningText: String?
@@ -156,6 +162,66 @@ struct AccessSettingsView: View {
                 }
 
                 Text("Dein Key bleibt lokal in dieser App. Audio und Text werden direkt an die OpenAI API gesendet.")
+                    .font(.system(size: 10.5))
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            VStack(alignment: .leading, spacing: 8) {
+                HStack {
+                    SectionLabel(text: "Anthropic API Key")
+                    Spacer()
+                    if appState.hasValue(for: .anthropicAPIKey) && !editingAnthropicKey {
+                        Button("Aendern") { editingAnthropicKey = true }
+                            .font(.system(size: 10, weight: .medium))
+                            .buttonStyle(.plain)
+                            .foregroundStyle(.blue)
+                    }
+                }
+
+                if appState.hasValue(for: .anthropicAPIKey) && !editingAnthropicKey {
+                    HStack(spacing: 6) {
+                        Image(systemName: "lock.fill")
+                            .font(.system(size: 9))
+                            .foregroundStyle(.green.opacity(0.8))
+                        Text(appState.apiKeyDisplayValue(for: .anthropicAPIKey))
+                            .font(.system(size: 11, design: .monospaced))
+                            .foregroundStyle(.secondary)
+                    }
+                    .padding(8)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(
+                        RoundedRectangle(cornerRadius: 6)
+                            .fill(Color(nsColor: .controlBackgroundColor))
+                    )
+                } else {
+                    HStack(spacing: 8) {
+                        SecureField("sk-ant-...", text: $anthropicAPIKey)
+                            .textFieldStyle(.roundedBorder)
+                            .font(.system(size: 11.5))
+                            .focused($focusedField, equals: .anthropicAPIKey)
+                            .onSubmit { saveAnthropicKey(anthropicAPIKey) }
+
+                        Button("Einfuegen") {
+                            pasteAnthropicKeyFromClipboard()
+                        }
+                        .buttonStyle(SubtleButtonStyle())
+                    }
+                }
+
+                if let anthropicKeyErrorText {
+                    Text(anthropicKeyErrorText)
+                        .font(.system(size: 10.5))
+                        .foregroundStyle(.red)
+                        .fixedSize(horizontal: false, vertical: true)
+                } else if let anthropicKeyStatusText {
+                    Text(anthropicKeyStatusText)
+                        .font(.system(size: 10.5))
+                        .foregroundStyle(.green)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+
+                Text("Nur f\u{00FC}r Blitztext Mail n\u{00F6}tig. Der Text der markierten Mail (inklusive Verlauf) und deine Stichpunkte gehen direkt an die Anthropic API. Die Transkription l\u{00E4}uft weiterhin \u{00FC}ber OpenAI.")
                     .font(.system(size: 10.5))
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -412,6 +478,23 @@ struct AccessSettingsView: View {
             return
         }
 
+        // The Anthropic key is optional (Blitztext Mail only): an empty field
+        // while editing just means "nothing to save".
+        let trimmedAnthropicKey = anthropicAPIKey.trimmingCharacters(in: .whitespacesAndNewlines)
+        if (editingAnthropicKey || !appState.hasValue(for: .anthropicAPIKey)) && !trimmedAnthropicKey.isEmpty {
+            if trimmedAnthropicKey.range(of: Self.anthropicAPIKeyPattern, options: .regularExpression) == nil {
+                saveWarningText = "Der Anthropic Key sieht ungew\u{00F6}hnlich aus (erwartet: beginnt mit sk-ant-). Gespeichert wurde er trotzdem."
+            }
+            do {
+                try KeychainService.save(key: .anthropicAPIKey, value: trimmedAnthropicKey)
+                anthropicAPIKey = ""
+                editingAnthropicKey = false
+            } catch {
+                saveErrorText = "Anthropic API Key konnte nicht gespeichert werden."
+                return
+            }
+        }
+
         withAnimation(.easeInOut(duration: 0.2)) { saved = true }
         DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
             withAnimation(.easeInOut(duration: 0.2)) { saved = false }
@@ -434,6 +517,55 @@ struct AccessSettingsView: View {
         openAIAPIKey = trimmedKey
         NSPasteboard.general.clearContents()
         saveErrorText = nil
+    }
+
+    private func pasteAnthropicKeyFromClipboard() {
+        // Fall back to what was typed or pasted into the field with Cmd+V.
+        let rawText = NSPasteboard.general.string(forType: .string) ?? ""
+        let firstLine = rawText.components(separatedBy: .newlines).first ?? rawText
+        let clipboardKey = firstLine.trimmingCharacters(in: .whitespacesAndNewlines)
+        if clipboardKey.range(of: Self.anthropicAPIKeyPattern, options: .regularExpression) != nil {
+            if saveAnthropicKey(clipboardKey) {
+                NSPasteboard.general.clearContents()
+            }
+            return
+        }
+        if !anthropicAPIKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            saveAnthropicKey(anthropicAPIKey)
+            return
+        }
+        anthropicKeyStatusText = nil
+        anthropicKeyErrorText = "Zwischenablage enth\u{00E4}lt keinen Anthropic API Key (beginnt mit sk-ant-)."
+    }
+
+    /// Saves the Anthropic key right away, so it does not depend on the
+    /// separate "Speichern" button at the bottom of the settings.
+    @discardableResult
+    private func saveAnthropicKey(_ rawKey: String) -> Bool {
+        let trimmedKey = rawKey.trimmingCharacters(in: .whitespacesAndNewlines)
+        anthropicKeyStatusText = nil
+        guard !trimmedKey.isEmpty else {
+            anthropicKeyErrorText = "Bitte zuerst einen Anthropic API Key einf\u{00FC}gen."
+            return false
+        }
+        do {
+            try KeychainService.save(key: .anthropicAPIKey, value: trimmedKey)
+        } catch {
+            anthropicKeyErrorText = "Anthropic API Key konnte nicht gespeichert werden."
+            return false
+        }
+        KeychainService.invalidateCache()
+        guard appState.hasValue(for: .anthropicAPIKey) else {
+            anthropicKeyErrorText = "Anthropic API Key wurde nicht dauerhaft gespeichert."
+            return false
+        }
+        anthropicAPIKey = ""
+        editingAnthropicKey = false
+        anthropicKeyErrorText = nil
+        anthropicKeyStatusText = trimmedKey.range(of: Self.anthropicAPIKeyPattern, options: .regularExpression) == nil
+            ? "Gespeichert. Der Key sieht ungew\u{00F6}hnlich aus (erwartet: beginnt mit sk-ant-)."
+            : "Gespeichert."
+        return true
     }
 
     private var installationHeadline: String {
@@ -494,7 +626,9 @@ struct AccessSettingsView: View {
 
         if deleteLocalDataOnCleanup {
             openAIAPIKey = ""
+            anthropicAPIKey = ""
             editingAPIKey = true
+            editingAnthropicKey = true
         }
 
         if report.failedItems.isEmpty {
@@ -856,6 +990,40 @@ struct CustomizeSettingsView: View {
                 }
 
                 Text("Leer = eingebaute Anweisung: nummerierte Liste, nichts dazuerfinden. Eine eigene Anweisung ersetzt sie komplett; die Eigennamen-Liste wird angeh\u{00E4}ngt.")
+                    .font(.system(size: 10.5))
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            // MARK: Blitztext Mail
+            VStack(alignment: .leading, spacing: 10) {
+                SectionLabel(text: "Blitztext Mail")
+
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Eigene Anweisung")
+                        .font(.system(size: 11))
+                        .foregroundStyle(.secondary)
+
+                    TextEditor(text: $appState.mailReplySettings.systemPrompt)
+                        .font(.system(size: 11))
+                        .frame(height: 80)
+                        .scrollContentBackground(.hidden)
+                        .padding(8)
+                        .background(Color.primary.opacity(0.03), in: RoundedRectangle(cornerRadius: 6))
+                        .overlay(RoundedRectangle(cornerRadius: 6).strokeBorder(Color.primary.opacity(0.06), lineWidth: 0.5))
+                        .overlay(alignment: .topLeading) {
+                            if appState.mailReplySettings.systemPrompt.isEmpty {
+                                Text("z.B. \"Antworte kurz und immer per Du.\"")
+                                    .font(.system(size: 11))
+                                    .foregroundStyle(.quaternary)
+                                    .padding(.horizontal, 12)
+                                    .padding(.vertical, 12)
+                                    .allowsHitTesting(false)
+                            }
+                        }
+                }
+
+                Text("Leer = eingebaute Anweisung: Du/Sie und Ton aus dem Mailverlauf, nichts dazuerfinden, Gru\u{00DF} mit \u{201E}Ben\u{201C} (Du) oder \u{201E}Ben Scheffler\u{201C} (Sie). Eine eigene Anweisung ersetzt sie komplett; die Eigennamen-Liste wird angeh\u{00E4}ngt. Braucht den Anthropic API Key unter Zugang. Funktioniert nur im Antwortfenster von Apple Mail.")
                     .font(.system(size: 10.5))
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)

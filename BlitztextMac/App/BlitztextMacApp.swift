@@ -67,9 +67,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
             object: nil
         )
 
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(handleShowPopoverForError),
+            name: .showPopoverForError,
+            object: nil
+        )
+
         DispatchQueue.main.async { [weak self] in
             self?.showOnboardingIfNeeded()
         }
+    }
+
+    @objc private func handleShowPopoverForError() {
+        guard !popover.isShown else { return }
+        showPopover()
     }
 
     @objc private func handleDismissPopover() {

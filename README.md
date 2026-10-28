@@ -15,11 +15,12 @@ This is a learning and experimentation project, not a polished product.
 - **Blitztext $%&!**: turn frustrated speech into a calmer message.
 - **Blitztext :)**: add fitting emojis to dictated text.
 - **Blitztext Prompt**: turn spoken instructions into a structured prompt with numbered points you can refer back to.
+- **Blitztext Mail**: in an open Apple Mail reply window, dictate bullet points and get a finished reply (Du/Sie and tone taken from the thread) pasted at the cursor. Uses Claude for writing, so it needs an Anthropic API key in addition to the OpenAI key. It never sends anything; you review and send yourself. Default shortcut: right Option + M.
 
 ## Important Preview Notes
 
 - macOS only.
-- Bring your own OpenAI API key.
+- Bring your own OpenAI API key (and an Anthropic API key if you want Blitztext Mail).
 - No hosted Blitztext backend is included or provided.
 - In online mode, audio and text are sent directly from the app to the OpenAI API.
 - Optional local transcription via WhisperKit/CoreML if you install a compatible model locally.

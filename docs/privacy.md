@@ -2,7 +2,7 @@
 
 Blitztext macOS Preview does not include a hosted backend.
 
-When you use the online workflows, your Mac sends data directly to OpenAI:
+When you use the online workflows, your Mac sends data directly to OpenAI (and, for Blitztext Mail, to Anthropic, see below):
 
 - audio recordings for transcription
 - transcribed or typed text for rewriting
@@ -12,24 +12,35 @@ When **Sicherer Lokaler Modus** is enabled and a WhisperKit/CoreML model is inst
 
 You are responsible for your OpenAI account, API usage, costs, and data handling.
 
+## Blitztext Mail And Anthropic
+
+Blitztext Mail sends data to a second provider. When you use it, your Mac reads the mail selected in Apple Mail and sends it directly to the Anthropic API together with your dictated points:
+
+- the full selected message: subject, sender, date, recipient addresses (To/Cc), and the complete text including the quoted thread history, truncated to roughly 40,000 characters
+- the transcript of your dictation (the audio itself still goes to OpenAI for transcription, as in the other workflows)
+
+This includes personal data of third parties, such as names, addresses, and whatever else the thread contains. Only use this workflow if you are allowed to pass the content of the mails you answer to Anthropic. Nothing is sent to Anthropic unless you start Blitztext Mail. Blitztext never sends or saves mail; it only pastes the reply text at the cursor of your reply window.
+
+Your Anthropic API key is stored in the macOS Keychain like the OpenAI key. You are responsible for your Anthropic account, API usage, costs, and data handling. The macOS Automation permission for Mail is required to read the selected message.
+
 ## Local Data
 
 The app stores:
 
-- your OpenAI API key in the user's macOS Keychain
+- your OpenAI API key (and, if set, your Anthropic API key) in the user's macOS Keychain
 - workflow settings in local app support storage
 - optional WhisperKit/CoreML model folders in local app support storage
 - temporary audio files while a transcription is being processed; the app attempts to delete each recording when the workflow ends or is cancelled
 
 Workflow output may also be placed on your clipboard so it can be pasted into another app. Auto-paste marks the clipboard entry as concealed for compatible clipboard managers, but the generated text intentionally remains on the clipboard as a fallback if automatic paste is blocked. Clipboard managers, macOS, or other apps may still observe clipboard contents while they are present.
 
-The app uses the system TLS trust store for OpenAI and Hugging Face requests. It does not currently pin certificates. A user-installed or managed root certificate can therefore affect HTTPS trust decisions on that Mac.
+The app uses the system TLS trust store for OpenAI, Anthropic, and Hugging Face requests. It does not currently pin certificates. A user-installed or managed root certificate can therefore affect HTTPS trust decisions on that Mac.
 
 Settings such as custom prompts, custom terms, and context are stored in local app support storage as plain JSON. Do not put secrets into those fields.
 
 ## Offline Scope
 
-Only transcription can run locally. Any workflow that rewrites, improves, or transforms text still uses OpenAI. Email paragraph formatting for plain dictation is a local text transformation and does not call any API.
+Only transcription can run locally. Any workflow that rewrites, improves, or transforms text still uses OpenAI; Blitztext Mail uses Anthropic for the reply text and is paused in secure local mode. Email paragraph formatting for plain dictation is a local text transformation and does not call any API.
 
 ## Sensitive Content
 

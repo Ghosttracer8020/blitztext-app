@@ -3,10 +3,12 @@ import Security
 
 enum KeychainKey: String, CaseIterable, Codable {
     case openAIAPIKey = "openAIAPIKey"
+    case anthropicAPIKey = "anthropicAPIKey"
 
     var label: String {
         switch self {
         case .openAIAPIKey: return "OpenAI API Key"
+        case .anthropicAPIKey: return "Anthropic API Key"
         }
     }
 }

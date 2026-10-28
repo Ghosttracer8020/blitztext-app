@@ -20,6 +20,8 @@
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>Blitztext benötigt Mikrofon-Zugriff für die Sprach-Transkription.</string>
+	<key>NSAppleEventsUsageDescription</key>
+	<string>Blitztext liest die markierte E-Mail in Mail, um eine Antwort zu formulieren.</string>
 	<key>LSUIElement</key>
 	<true/>
 	<key>CFBundleIconFile</key>

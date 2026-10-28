@@ -191,7 +191,7 @@ cp -R "$APP_PATH" "$DEST"
 echo "🔏 Signiere lokale Development-App. Dieses Artefakt ist nicht notarisiert."
 # Strip xattrs that iCloud/file provider may have re-added before signing
 xattr -cr "$DEST" 2>/dev/null || true
-codesign --force --sign "$CODESIGN_IDENTITY" "$DEST" 2>&1
+codesign --force --sign "$CODESIGN_IDENTITY" --entitlements "$PROJECT_DIR/Resources/BlitztextMac.entitlements" "$DEST" 2>&1
 verify_universal_app "$DEST"
 
 RUN_TARGET="$DEST"
@@ -208,7 +208,7 @@ if [ "$INSTALL_APP" = true ]; then
     cp -R "$DEST" "$INSTALL_DEST"
     echo "🔏 Signiere lokale Development-App. Dieses Artefakt ist nicht notarisiert."
     xattr -cr "$INSTALL_DEST" 2>/dev/null || true
-    codesign --force --sign "$CODESIGN_IDENTITY" "$INSTALL_DEST" 2>&1
+    codesign --force --sign "$CODESIGN_IDENTITY" --entitlements "$PROJECT_DIR/Resources/BlitztextMac.entitlements" "$INSTALL_DEST" 2>&1
     verify_universal_app "$INSTALL_DEST"
     RUN_TARGET="$INSTALL_DEST"
 fi

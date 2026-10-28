@@ -6,8 +6,8 @@ This is a preview roadmap, not a promise.
 
 - macOS menubar app
 - local recording and hotkeys
-- direct OpenAI API calls with a user-provided API key
-- transcription, rewriting, calmer-message, emoji, and prompt-crafting workflows
+- direct OpenAI API calls (and Anthropic API calls for Blitztext Mail) with user-provided API keys
+- transcription, rewriting, calmer-message, emoji, prompt-crafting, and Apple Mail reply workflows
 - no hosted backend
 - no other platforms
 - no packaged public release

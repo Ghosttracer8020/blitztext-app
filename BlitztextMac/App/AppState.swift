@@ -74,6 +74,9 @@ final class AppState {
     var promptTextSettings: PromptTextSettings {
         didSet { saveSettings() }
     }
+    var mailReplySettings: MailReplySettings {
+        didSet { saveSettings() }
+    }
 
     // Hotkeys
     let hotkeyService = HotkeyService()
@@ -98,6 +101,7 @@ final class AppState {
         self.dampfAblassenSettings = Self.loadDampfAblassenSettings()
         self.emojiTextSettings = Self.loadEmojiTextSettings()
         self.promptTextSettings = Self.loadPromptTextSettings()
+        self.mailReplySettings = Self.loadMailReplySettings()
         refreshAccessibilityPermission()
         autoSelectFastLocalModelIfNeeded()
         prewarmLocalTranscriptionIfNeeded()
@@ -162,6 +166,9 @@ final class AppState {
         case .promptText:
             let name = promptTextSettings.customName.trimmingCharacters(in: .whitespaces)
             return name.isEmpty ? type.displayName : name
+        case .mailReply:
+            let name = mailReplySettings.customName.trimmingCharacters(in: .whitespaces)
+            return name.isEmpty ? type.displayName : name
         default:
             return type.displayName
         }
@@ -211,7 +218,7 @@ final class AppState {
             return "Online: Whisper über OpenAI."
         case .localTranscription:
             return "Nur lokal. Kein Server."
-        case .textImprover, .dampfAblassen, .emojiText, .promptText:
+        case .textImprover, .dampfAblassen, .emojiText, .promptText, .mailReply:
             if appSettings.secureLocalModeEnabled {
                 return "Im lokalen Modus pausiert."
             }
@@ -325,6 +332,16 @@ final class AppState {
             configureWorkflowHandlers(workflow)
             activeWorkflow = workflow
             workflow.start()
+
+        case .mailReply:
+            let workflow = MailReplyWorkflow(
+                settings: mailReplySettings,
+                customTerms: textImprovementSettings.customTerms,
+                language: transcriptionSettings.language
+            )
+            configureWorkflowHandlers(workflow)
+            activeWorkflow = workflow
+            workflow.start()
         }
 
         page = source.presentsWorkflowPage ? .workflow : .main
@@ -354,7 +371,7 @@ final class AppState {
             return appSettings.secureLocalModeEnabled
                 ? selectedLocalModelIsInstalled
                 : KeychainService.isConfigured
-        case .textImprover, .dampfAblassen, .emojiText, .promptText:
+        case .textImprover, .dampfAblassen, .emojiText, .promptText, .mailReply:
             return !appSettings.secureLocalModeEnabled && KeychainService.isConfigured
         }
     }
@@ -506,7 +523,8 @@ final class AppState {
             textImprovement: textImprovementSettings,
             dampfAblassen: dampfAblassenSettings,
             emojiText: emojiTextSettings,
-            promptText: promptTextSettings
+            promptText: promptTextSettings,
+            mailReply: mailReplySettings
         )
         if let data = try? JSONEncoder().encode(container) {
             try? data.write(to: Self.settingsURL)
@@ -535,6 +553,10 @@ final class AppState {
 
     private static func loadPromptTextSettings() -> PromptTextSettings {
         loadContainer()?.promptText ?? PromptTextSettings()
+    }
+
+    private static func loadMailReplySettings() -> MailReplySettings {
+        loadContainer()?.mailReply ?? MailReplySettings()
     }
 
     private static func loadContainer() -> SettingsContainer? {
@@ -634,9 +656,15 @@ final class AppState {
         case .error:
             menuBarStatus = .error(workflow.type)
             if activeLaunchSource == .hotkeyBackground {
-                activeWorkflow = nil
-                activePasteTarget = nil
-                page = .main
+                if workflow.type == .mailReply {
+                    // The pill shows no text, so surface the German error in the popover.
+                    page = .workflow
+                    NotificationCenter.default.post(name: .showPopoverForError, object: nil)
+                } else {
+                    activeWorkflow = nil
+                    activePasteTarget = nil
+                    page = .main
+                }
             }
             scheduleMenuBarStatusReset(after: 1.6)
         }
@@ -844,12 +872,14 @@ private struct SettingsContainer: Codable {
     var dampfAblassen: DampfAblassenSettings?
     var emojiText: EmojiTextSettings?
     var promptText: PromptTextSettings?
+    var mailReply: MailReplySettings?
 }
 
 // MARK: - Notification for Popover Dismissal
 
 extension Notification.Name {
     static let dismissPopover = Notification.Name("dismissPopover")
+    static let showPopoverForError = Notification.Name("showPopoverForError")
 }
 
 private struct PasteTarget {
