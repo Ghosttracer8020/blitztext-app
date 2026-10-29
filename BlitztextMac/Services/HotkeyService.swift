@@ -30,6 +30,11 @@ enum HotkeyEvent {
     /// (e.g. right-Option dictation -> right-Option+right-Command combo):
     /// discard the in-flight recording and start the new workflow.
     case switchTo(WorkflowType)
+    /// Typed Blitztext Mail shortcut pressed. Always a single press, regardless
+    /// of the hold/toggle mode; its release is not reported.
+    case typedMailReply
+    /// Like `switchTo`, for the typed Blitztext Mail shortcut.
+    case switchToTypedMailReply
 }
 
 @Observable

@@ -28,12 +28,13 @@ final class DampfAblassenWorkflow: Workflow {
 
     var isRecording: Bool { recorder.isRecording }
     var audioLevel: Float { recorder.audioLevel }
+    var audioBands: [Float] { recorder.audioBands }
 
     // MARK: - Workflow Protocol
 
     /// Recorder first, phase second — see TranscriptionWorkflow.start().
     func start() {
-        recorder.startRecording()
+        recorder.startRecording(live: LiveTranscriptionRequest.make(customTerms: customTerms, language: language))
 
         if let error = recorder.errorMessage {
             phase = .error(error)
@@ -77,6 +78,7 @@ final class DampfAblassenWorkflow: Workflow {
 
         phase = .running("Wird transkribiert ...")
         let recordingDuration = recorder.lastRecordingDuration
+        let liveSession = recorder.takeLiveSession()
         let vocabularyHints = recordingDuration >= 0.9 ? customTerms : []
 
         processingTask = Task {
@@ -89,7 +91,9 @@ final class DampfAblassenWorkflow: Workflow {
                 let rawText = try await TranscriptionService.transcribe(
                     audioURL: url,
                     customTerms: vocabularyHints,
-                    language: language
+                    language: language,
+                    live: liveSession,
+                    recordingDuration: recordingDuration
                 )
                 let cleanedRawText = TranscriptionQualityService.cleanedTranscript(rawText)
                 guard !TranscriptionQualityService.isLikelyArtifact(cleanedRawText, recordingDuration: recordingDuration) else {

@@ -83,10 +83,19 @@ targets:
       - path: Services/PromptTextPromptBuilder.swift
       - path: Services/EmailParagraphFormatter.swift
       - path: Services/MailContextService.swift
+      - path: Services/MailComposeService.swift
+      - path: Services/MailHistoryService.swift
       - path: Services/MailReplyPromptBuilder.swift
       - path: Services/MailReplySettings.swift
+      - path: Services/MailReplyTypedInput.swift
       - path: Services/AnthropicService.swift
       - path: Services/KeychainService.swift
+      - path: Services/PillBandMath.swift
+      - path: Services/PillBarGeometry.swift
+      - path: Services/LiveTranscriptionProtocol.swift
+      - path: Services/PCM16Converter.swift
+      - path: Services/HintsPanelPlacement.swift
+      - path: Features/Pill/PillContentView.swift
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: app.blitztext.mac.tests

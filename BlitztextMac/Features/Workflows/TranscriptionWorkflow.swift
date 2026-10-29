@@ -48,7 +48,9 @@ final class TranscriptionWorkflow: Workflow {
     /// announcing `.running` first would show the processing color for the
     /// whole recording.
     func start() {
-        recorder.startRecording()
+        recorder.startRecording(
+            live: backend == .remote ? LiveTranscriptionRequest.make(customTerms: customTerms, language: language) : nil
+        )
 
         if let error = recorder.errorMessage {
             phase = .error(error)
@@ -84,6 +86,7 @@ final class TranscriptionWorkflow: Workflow {
 
     var isRecording: Bool { recorder.isRecording }
     var audioLevel: Float { recorder.audioLevel }
+    var audioBands: [Float] { recorder.audioBands }
 
     private func transcribe() {
         guard let url = recorder.recordingURL else {
@@ -93,6 +96,7 @@ final class TranscriptionWorkflow: Workflow {
 
         phase = .running(backend == .local ? "Wird lokal transkribiert ..." : "Wird transkribiert ...")
         let recordingDuration = recorder.lastRecordingDuration
+        let liveSession = recorder.takeLiveSession()
         let vocabularyHints = recordingDuration >= 0.9 ? customTerms : []
         let requestLanguage = language
         let stopTime = Date()
@@ -110,7 +114,9 @@ final class TranscriptionWorkflow: Workflow {
                     text = try await TranscriptionService.transcribe(
                         audioURL: url,
                         customTerms: vocabularyHints,
-                        language: requestLanguage
+                        language: requestLanguage,
+                        live: liveSession,
+                        recordingDuration: recordingDuration
                     )
                 case .local:
                     text = try await LocalTranscriptionService.shared.transcribe(

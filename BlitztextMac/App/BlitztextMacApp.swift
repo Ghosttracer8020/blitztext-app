@@ -56,6 +56,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
             self?.menuBarStatusController.update(to: status)
             self?.pillWindowController.update(for: status)
         }
+        appState.mailHintsPanel.pillCapsuleRect = { [weak self] in
+            self?.pillWindowController.capsuleScreenRect()
+        }
         appState.hotkeyService.start()
         appState.customHotkeyService.startIfNeeded()
 
@@ -146,7 +149,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
             // and start the requested workflow seamlessly.
             appState.resetCurrentWorkflow()
             handleHotkeyDown(type)
+        case .typedMailReply:
+            handleTypedMailReply()
+        case .switchToTypedMailReply:
+            appState.resetCurrentWorkflow()
+            handleTypedMailReply()
         }
+    }
+
+    /// Single press by design: hold/toggle mode only concern recording.
+    private func handleTypedMailReply() {
+        pendingHoldStart?.cancel()
+        pendingHoldStart = nil
+        appState.startTypedMailReply()
     }
 
     private func handleHotkeyDown(_ type: WorkflowType) {

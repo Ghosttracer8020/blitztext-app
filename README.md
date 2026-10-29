@@ -15,14 +15,14 @@ This is a learning and experimentation project, not a polished product.
 - **Blitztext $%&!**: turn frustrated speech into a calmer message.
 - **Blitztext :)**: add fitting emojis to dictated text.
 - **Blitztext Prompt**: turn spoken instructions into a structured prompt with numbered points you can refer back to.
-- **Blitztext Mail**: in an open Apple Mail reply window, dictate bullet points and get a finished reply (Du/Sie and tone taken from the thread) pasted at the cursor. Uses Claude for writing, so it needs an Anthropic API key in addition to the OpenAI key. It never sends anything; you review and send yourself. Default shortcut: right Option + M.
+- **Blitztext Mail**: in an open Apple Mail reply window, dictate bullet points and get a finished reply (Du/Sie and tone taken from the thread) pasted at the cursor. Uses Claude for writing, so it needs an Anthropic API key in addition to the OpenAI key. It never sends anything; you review and send yourself. If Claude finds something worth checking in the thread (a point that contradicts an earlier agreement, a question you ask that was already answered, an open question you did not address), a small non-focus-stealing panel "Prüfen vor dem Senden" appears after the paste; hints never go into the mail text. Default shortcut: right Option + M (dictate). Right Option + N opens a small input panel instead (type the points, Enter sends, Shift+Enter new line, Esc cancels) - same result, for when dictating does not fit; no OpenAI key needed for that variant. The same shortcuts also work in a new-mail window (title without Re:/AW:/Fwd:): Claude then writes a complete mail from your points and the recipient names in To/Cc (greeting, Du/Sie, closing), fills the subject only if it is still empty, and pastes into the message body; no hints in that mode. Default address form is Du (Sie if you say so in the points). To pick it, Blitztext looks up the newest mail you received from the first To recipient (all accounts and mailboxes, about 4 s, in parallel to your dictation) and sends an excerpt of it to Anthropic; no such mail means Du.
 
 ## Important Preview Notes
 
 - macOS only.
 - Bring your own OpenAI API key (and an Anthropic API key if you want Blitztext Mail).
 - No hosted Blitztext backend is included or provided.
-- In online mode, audio and text are sent directly from the app to the OpenAI API.
+- In online mode, audio and text are sent directly from the app to the OpenAI API. Audio is streamed live to OpenAI while you hold the hotkey; if that fails, the recorded file is transcribed in one request instead.
 - Optional local transcription via WhisperKit/CoreML if you install a compatible model locally.
 - `./build.sh` creates a locally ad-hoc-signed development app. No notarized release binary is provided.
 - Not production ready.
@@ -51,7 +51,7 @@ The intent is not to ship a one-click finished app. The intent is to make a real
 - Xcode 16 or newer (Swift 5.10), with Command Line Tools installed and selected for `xcodebuild`
 - [XcodeGen](https://github.com/yonaskolb/XcodeGen) to generate the Xcode project
 - For online transcription and rewriting: an OpenAI API key with access to:
-  - `gpt-4o-mini-transcribe` for transcription
+  - `gpt-live-transcribe` (live streaming while you speak) and `gpt-transcribe` (fallback on the recorded file) for transcription
   - `gpt-4.1-mini` and optionally `gpt-4.1` for rewriting
 - For local-only transcription: a WhisperKit CoreML model in:
   `~/Library/Application Support/Blitztext/models/whisperkit/`
@@ -104,7 +104,8 @@ Full Disk Access is not required. If auto-paste does not work even though transc
 The preview has no custom backend.
 
 ```text
-Online transcription: Your Mac -> OpenAI Audio Transcriptions API
+Online transcription: Your Mac -> OpenAI Realtime API (WebSocket, live while recording)
+                      fallback: Your Mac -> OpenAI Audio Transcriptions API (recorded file)
 Text rewriting:       Your Mac -> OpenAI Chat Completions API
 Local transcription:  Your Mac -> WhisperKit/CoreML on device
 ```

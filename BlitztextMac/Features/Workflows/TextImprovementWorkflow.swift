@@ -26,12 +26,13 @@ final class TextImprovementWorkflow: Workflow {
 
     var isRecording: Bool { recorder.isRecording }
     var audioLevel: Float { recorder.audioLevel }
+    var audioBands: [Float] { recorder.audioBands }
 
     // MARK: - Workflow Protocol
 
     /// Recorder first, phase second — see TranscriptionWorkflow.start().
     func start() {
-        recorder.startRecording()
+        recorder.startRecording(live: LiveTranscriptionRequest.make(customTerms: settings.customTerms, language: language))
 
         if let error = recorder.errorMessage {
             phase = .error(error)
@@ -75,6 +76,7 @@ final class TextImprovementWorkflow: Workflow {
 
         phase = .running("Wird transkribiert ...")
         let recordingDuration = recorder.lastRecordingDuration
+        let liveSession = recorder.takeLiveSession()
         let vocabularyHints = recordingDuration >= 0.9 ? settings.customTerms : []
 
         processingTask = Task {
@@ -87,7 +89,9 @@ final class TextImprovementWorkflow: Workflow {
                 let rawText = try await TranscriptionService.transcribe(
                     audioURL: url,
                     customTerms: vocabularyHints,
-                    language: language
+                    language: language,
+                    live: liveSession,
+                    recordingDuration: recordingDuration
                 )
                 let cleanedRawText = TranscriptionQualityService.cleanedTranscript(rawText)
                 guard !TranscriptionQualityService.isLikelyArtifact(cleanedRawText, recordingDuration: recordingDuration) else {

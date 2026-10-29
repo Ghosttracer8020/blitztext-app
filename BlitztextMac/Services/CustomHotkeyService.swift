@@ -10,6 +10,34 @@ import Cocoa
 /// latency whenever the main thread is busy, and main-thread stalls beyond
 /// ~1s would get the tap disabled by the system mid-combo.
 /// Requires Accessibility permission (already needed for auto-paste).
+/// What a custom binding triggers: a workflow (hold/toggle by the global
+/// mode) or the typed Blitztext Mail input (single press).
+enum HotkeyTarget: Equatable {
+    case workflow(WorkflowType)
+    case typedMailReply
+
+    var downEvent: HotkeyEvent {
+        switch self {
+        case .workflow(let type): return .down(type)
+        case .typedMailReply: return .typedMailReply
+        }
+    }
+
+    var upEvent: HotkeyEvent? {
+        switch self {
+        case .workflow(let type): return .up(type)
+        case .typedMailReply: return nil
+        }
+    }
+
+    var switchEvent: HotkeyEvent {
+        switch self {
+        case .workflow(let type): return .switchTo(type)
+        case .typedMailReply: return .switchToTypedMailReply
+        }
+    }
+}
+
 @MainActor
 final class CustomHotkeyService {
     var onHotkeyEvent: ((HotkeyEvent) -> Void)? {
@@ -22,9 +50,12 @@ final class CustomHotkeyService {
     private var tapThread: Thread?
 
     func updateBindings(_ shortcuts: [String: KeyboardShortcut]) {
-        let resolved = shortcuts.compactMap { entry -> (KeyboardShortcut, WorkflowType)? in
+        let resolved = shortcuts.compactMap { entry -> (KeyboardShortcut, HotkeyTarget)? in
+            if entry.key == MailReplyTypedShortcutMigration.shortcutID {
+                return (entry.value, .typedMailReply)
+            }
             guard let type = WorkflowType(rawValue: entry.key) else { return nil }
-            return (entry.value, type)
+            return (entry.value, .workflow(type))
         }
         state.setBindings(resolved)
     }
@@ -143,11 +174,11 @@ final class CustomHotkeyTapState: @unchecked Sendable {
         /// nil for modifier-only shortcuts
         let keyCode: Int64?
         let shortcut: KeyboardShortcut
-        let workflow: WorkflowType
+        let target: HotkeyTarget
     }
 
     private let lock = NSLock()
-    private var bindings: [(shortcut: KeyboardShortcut, workflow: WorkflowType)] = []
+    private var bindings: [(shortcut: KeyboardShortcut, target: HotkeyTarget)] = []
     /// Combo currently held.
     private var active: ActiveCombo?
     /// Key still physically held after its required modifiers were released
@@ -168,7 +199,7 @@ final class CustomHotkeyTapState: @unchecked Sendable {
         set { lock.withLock { _onEvent = newValue } }
     }
 
-    func setBindings(_ newBindings: [(KeyboardShortcut, WorkflowType)]) {
+    func setBindings(_ newBindings: [(KeyboardShortcut, HotkeyTarget)]) {
         lock.withLock { bindings = newBindings }
     }
 
@@ -213,7 +244,7 @@ final class CustomHotkeyTapState: @unchecked Sendable {
             // combo so hold-mode recordings are not stranded and the next
             // plain press of the key is not swallowed.
             if let combo = active {
-                emit = .up(combo.workflow)
+                emit = combo.target.upEvent
             }
             active = nil
             drainKeyCode = nil
@@ -230,9 +261,9 @@ final class CustomHotkeyTapState: @unchecked Sendable {
                     active = ActiveCombo(
                         keyCode: keyCode,
                         shortcut: match.shortcut,
-                        workflow: match.workflow
+                        target: match.target
                     )
-                    emit = .down(match.workflow)
+                    emit = match.target.downEvent
                 } else if let combo = active, combo.shortcut.isModifierOnly {
                     // Upgrade: a keyed binding fired while its modifier-only
                     // prefix is active (e.g. rAlt dictation -> rAlt+J combo).
@@ -240,9 +271,9 @@ final class CustomHotkeyTapState: @unchecked Sendable {
                     active = ActiveCombo(
                         keyCode: keyCode,
                         shortcut: match.shortcut,
-                        workflow: match.workflow
+                        target: match.target
                     )
-                    emit = .switchTo(match.workflow)
+                    emit = match.target.switchEvent
                 }
                 // A second bound combo during an active keyed one is
                 // swallowed so no stray character reaches the focused app.
@@ -253,7 +284,7 @@ final class CustomHotkeyTapState: @unchecked Sendable {
             let keyCode = event.getIntegerValueField(.keyboardEventKeycode)
             if let combo = active, let comboKey = combo.keyCode, keyCode == comboKey {
                 active = nil
-                emit = .up(combo.workflow)
+                emit = combo.target.upEvent
                 swallow = true
             } else if keyCode == drainKeyCode {
                 drainKeyCode = nil
@@ -279,15 +310,15 @@ final class CustomHotkeyTapState: @unchecked Sendable {
                     active = ActiveCombo(
                         keyCode: nil,
                         shortcut: upgrade.shortcut,
-                        workflow: upgrade.workflow
+                        target: upgrade.target
                     )
-                    emit = .switchTo(upgrade.workflow)
+                    emit = upgrade.target.switchEvent
                 } else if !combo.shortcut.requiredModifiersStillHeld(event.flags) {
                     // Releasing a required modifier ends the combo; a
                     // still-held key keeps draining until its physical keyUp.
                     active = nil
                     drainKeyCode = combo.keyCode
-                    emit = .up(combo.workflow)
+                    emit = combo.target.upEvent
                 }
             } else if drainKeyCode == nil,
                       let match = bindings.first(where: { $0.shortcut.matchesModifierState(event.flags) }) {
@@ -296,9 +327,9 @@ final class CustomHotkeyTapState: @unchecked Sendable {
                 active = ActiveCombo(
                     keyCode: nil,
                     shortcut: match.shortcut,
-                    workflow: match.workflow
+                    target: match.target
                 )
-                emit = .down(match.workflow)
+                emit = match.target.downEvent
             }
 
         default:

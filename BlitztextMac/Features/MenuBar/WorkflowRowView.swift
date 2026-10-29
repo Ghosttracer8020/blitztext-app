@@ -76,24 +76,41 @@ struct HotkeyBadge: View {
 
     var body: some View {
         HStack(spacing: 3) {
-            // Built-in labels join with " + ", recorded shortcuts with " "
-            ForEach(label.components(separatedBy: " + ").flatMap { $0.split(separator: " ").map(String.init) }, id: \.self) { key in
-                Text(key)
-                    .font(.system(size: 10.5, weight: .semibold, design: .rounded))
-                    .foregroundStyle(keyTextColor)
-                    .padding(.horizontal, 7)
-                    .padding(.vertical, 4)
-                    .background(
-                        RoundedRectangle(cornerRadius: 6, style: .continuous)
-                            .fill(keyBackgroundColor)
-                    )
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 6, style: .continuous)
-                            .strokeBorder(keyStrokeColor, lineWidth: 0.8)
-                    )
-                    .shadow(color: keyShadowColor, radius: 1.2, y: 0.6)
+            // Alternative shortcuts (Blitztext Mail: dictate / type) join with " / ",
+            // built-in labels join their keys with " + ", recorded shortcuts with " "
+            let groups = label.components(separatedBy: " / ")
+            ForEach(Array(groups.enumerated()), id: \.offset) { groupIndex, group in
+                if groupIndex > 0 {
+                    Text("/")
+                        .font(.system(size: 10.5, weight: .medium, design: .rounded))
+                        .foregroundStyle(keyTextColor.opacity(0.7))
+                }
+                ForEach(Array(Self.keys(in: group).enumerated()), id: \.offset) { _, key in
+                    keyCap(key)
+                }
             }
         }
+    }
+
+    static func keys(in group: String) -> [String] {
+        group.components(separatedBy: " + ").flatMap { $0.split(separator: " ").map(String.init) }
+    }
+
+    private func keyCap(_ key: String) -> some View {
+        Text(key)
+            .font(.system(size: 10.5, weight: .semibold, design: .rounded))
+            .foregroundStyle(keyTextColor)
+            .padding(.horizontal, 7)
+            .padding(.vertical, 4)
+            .background(
+                RoundedRectangle(cornerRadius: 6, style: .continuous)
+                    .fill(keyBackgroundColor)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 6, style: .continuous)
+                    .strokeBorder(keyStrokeColor, lineWidth: 0.8)
+            )
+            .shadow(color: keyShadowColor, radius: 1.2, y: 0.6)
     }
 
     private var keyTextColor: Color {

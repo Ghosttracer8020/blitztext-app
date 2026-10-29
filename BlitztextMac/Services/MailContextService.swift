@@ -15,6 +15,28 @@ struct MailContext: Equatable {
     var ccRecipients: [String] = []
 }
 
+/// The reply window that was focused when the mail was captured, so the typed
+/// flow can bring exactly that window back after the input panel closed.
+struct MailReplyWindowRef {
+    let pid: pid_t
+    let element: AXUIElement
+    let title: String?
+}
+
+/// What was read from Mail: the thread of the selected message for a reply,
+/// the recipients and subject of the compose window for a new mail.
+enum MailCaptureContent {
+    case reply(MailContext)
+    case compose(MailComposeContext)
+}
+
+/// Everything the workflow needs from the moment Mail was frontmost.
+struct MailCapture {
+    let content: MailCaptureContent
+    let pid: pid_t
+    let window: MailReplyWindowRef?
+}
+
 enum MailContextError: LocalizedError, Equatable {
     case notMail
     case automationDenied
@@ -54,14 +76,18 @@ enum MailContextService {
 
     // MARK: - Pure helpers
 
+    private static let replyPrefixPattern = #"^(re|aw|fwd|fw|wg)\s*:\s*"#
+
+    /// True if the title starts with a reply/forward prefix ("Re:", "AW:", ...).
+    static func hasReplyPrefix(_ title: String) -> Bool {
+        collapseWhitespace(title).range(of: replyPrefixPattern, options: [.regularExpression, .caseInsensitive]) != nil
+    }
+
     /// Strips repeated reply/forward prefixes ("Re:", "AW:", "Fwd:", "Fw:",
     /// "WG:", any case), collapses whitespace, trims.
     static func normalizeSubject(_ subject: String) -> String {
         var text = collapseWhitespace(subject)
-        while let range = text.range(
-            of: #"^(re|aw|fwd|fw|wg)\s*:\s*"#,
-            options: [.regularExpression, .caseInsensitive]
-        ) {
+        while let range = text.range(of: replyPrefixPattern, options: [.regularExpression, .caseInsensitive]) {
             text.removeSubrange(range)
         }
         return collapseWhitespace(text)
@@ -87,15 +113,26 @@ enum MailContextService {
 
     // MARK: - Capture (needs a running Mail)
 
-    /// Must be called while Mail is frontmost with the reply window focused.
-    /// NSAppleScript is not thread-safe, hence main actor.
+    /// Must be called while Mail is frontmost with the reply or compose window
+    /// focused. Remembers Mail's pid and that window. A reply window reads the
+    /// selected message on the AppleScript queue (awaited, never blocking the
+    /// main thread); a compose window without reply prefix reads only itself,
+    /// no selection.
     @MainActor
-    static func capture() throws -> MailContext {
+    static func captureWithWindow() async throws -> MailCapture {
         try ensureMailIsFrontmost()
         let pid = NSWorkspace.shared.frontmostApplication!.processIdentifier
 
-        let windowTitle = focusedWindowTitle(pid: pid)
-        let message = try readSelectedMessage()
+        let window = focusedWindowRef(pid: pid)
+        let windowTitle = window?.title
+
+        let composeContext = window.flatMap { MailComposeService.readContext(of: $0.element) }
+        if let composeContext,
+           MailWindowKind.classify(title: windowTitle, hasToField: true) == .compose {
+            return MailCapture(content: .compose(composeContext), pid: pid, window: window)
+        }
+
+        let message = try await readSelectedMessage()
 
         if let windowTitle, !windowTitle.isEmpty {
             guard subjectsMatch(windowTitle: windowTitle, selectedSubject: message.subject) else {
@@ -110,7 +147,7 @@ enum MailContextService {
 
         var result = message
         result.content = truncate(message.content)
-        return result
+        return MailCapture(content: .reply(result), pid: pid, window: window)
     }
 
     @MainActor
@@ -121,6 +158,10 @@ enum MailContextService {
     }
 
     static func focusedWindowTitle(pid: pid_t) -> String? {
+        focusedWindowRef(pid: pid)?.title
+    }
+
+    static func focusedWindowRef(pid: pid_t) -> MailReplyWindowRef? {
         let app = AXUIElementCreateApplication(pid)
         // Never stall the recording start on an unresponsive Mail.
         AXUIElementSetMessagingTimeout(app, 0.25)
@@ -135,12 +176,17 @@ enum MailContextService {
         AXUIElementSetMessagingTimeout(window, 0.25)
 
         var titleRef: CFTypeRef?
-        guard AXUIElementCopyAttributeValue(
+        let title: String?
+        if AXUIElementCopyAttributeValue(
             window,
             kAXTitleAttribute as CFString,
             &titleRef
-        ) == .success, let title = titleRef as? String else { return nil }
-        return title
+        ) == .success {
+            title = titleRef as? String
+        } else {
+            title = nil
+        }
+        return MailReplyWindowRef(pid: pid, element: window, title: title)
     }
 
     private static let selectionScript = """
@@ -162,9 +208,13 @@ enum MailContextService {
     end timeout
     """
 
-    @MainActor
-    private static func readSelectedMessage() throws -> MailContext {
-        guard let script = NSAppleScript(source: selectionScript) else {
+    /// NSAppleScript is not thread-safe: every script of the app runs on this
+    /// one serial queue, never two at once from different threads.
+    static let scriptQueue = DispatchQueue(label: "app.blitztext.mac.mail-applescript", qos: .userInitiated)
+
+    /// Runs a script and maps its errors. Call only on `scriptQueue`.
+    static func executeScript(_ source: String) throws -> NSAppleEventDescriptor {
+        guard let script = NSAppleScript(source: source) else {
             throw MailContextError.unreadable
         }
         var errorInfo: NSDictionary?
@@ -172,7 +222,7 @@ enum MailContextService {
 
         if let errorInfo {
             let code = (errorInfo[NSAppleScript.errorNumber] as? Int) ?? 0
-            mailContextLogger.error("Mail selection script failed: \(code)")
+            mailContextLogger.error("Mail script failed: \(code)")
             // -1743: Automation permission denied; -1744: needs user consent.
             if code == -1743 || code == -1744 {
                 throw MailContextError.automationDenied
@@ -182,6 +232,18 @@ enum MailContextService {
                 throw MailContextError.mailNotResponding
             }
             throw MailContextError.scriptFailed(code)
+        }
+        return descriptor
+    }
+
+    /// Runs on the shared queue, so it runs after a history lookup that is
+    /// still in flight instead of in parallel; the caller awaits, so the main
+    /// thread stays free meanwhile.
+    private static func readSelectedMessage() async throws -> MailContext {
+        let descriptor: NSAppleEventDescriptor = try await withCheckedThrowingContinuation { continuation in
+            scriptQueue.async {
+                continuation.resume(with: Result { try executeScript(selectionScript) })
+            }
         }
 
         guard descriptor.descriptorType != typeNull, descriptor.numberOfItems >= 4 else {

@@ -13,20 +13,40 @@ final class MailReplyPromptBuilderTests: XCTestCase {
     func testEmptyInstructionFallsBackToDefault() {
         XCTAssertEqual(
             MailReplyPromptBuilder.systemPrompt(customInstruction: "  \n ", customTerms: []),
-            MailReplyPromptBuilder.defaultSystemPrompt
+            MailReplyPromptBuilder.defaultSystemPrompt + "\n\n" + MailReplyPromptBuilder.hintContract
         )
     }
 
     func testCustomInstructionReplacesDefault() {
         let prompt = MailReplyPromptBuilder.systemPrompt(customInstruction: "Antworte kurz.", customTerms: [])
-        XCTAssertEqual(prompt, "Antworte kurz.")
+        XCTAssertTrue(prompt.hasPrefix("Antworte kurz."))
         XCTAssertFalse(prompt.contains(MailReplyPromptBuilder.defaultSystemPrompt))
+    }
+
+    func testHintContractIsAppendedWithDefaultAndCustomInstruction() {
+        for instruction in ["", "Antworte kurz."] {
+            let prompt = MailReplyPromptBuilder.systemPrompt(customInstruction: instruction, customTerms: [])
+            XCTAssertTrue(prompt.contains(MailReplyPromptBuilder.hintContract))
+            XCTAssertTrue(prompt.contains("JSON-Objekt mit zwei Feldern"))
+            XCTAssertTrue(prompt.contains("Die Antwort folgt immer Bens Stichpunkten"))
+            XCTAssertTrue(prompt.contains("höchstens 5"))
+            XCTAssertTrue(prompt.contains("widerspruch"))
+            XCTAssertTrue(prompt.contains("schon_beantwortet"))
+            XCTAssertTrue(prompt.contains("offen"))
+            XCTAssertTrue(prompt.contains("leeres Array"))
+        }
+    }
+
+    func testDefaultPromptKeepsUnansweredQuestionsOutOfTheReply() {
+        XCTAssertFalse(MailReplyPromptBuilder.defaultSystemPrompt.contains("erwähnst du nicht.\n"))
+        XCTAssertTrue(MailReplyPromptBuilder.defaultSystemPrompt.contains("Prüfhinweise"))
     }
 
     func testCustomTermsAreAppended() {
         let prompt = MailReplyPromptBuilder.systemPrompt(customInstruction: "", customTerms: ["ParkourONE", "Blitztext"])
         XCTAssertTrue(prompt.hasPrefix(MailReplyPromptBuilder.defaultSystemPrompt))
         XCTAssertTrue(prompt.contains("ParkourONE, Blitztext"))
+        XCTAssertTrue(prompt.contains(MailReplyPromptBuilder.hintContract))
     }
 
     func testDefaultPromptCarriesTheCoreRules() {

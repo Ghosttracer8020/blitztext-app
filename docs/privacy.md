@@ -4,9 +4,9 @@ Blitztext macOS Preview does not include a hosted backend.
 
 When you use the online workflows, your Mac sends data directly to OpenAI (and, for Blitztext Mail, to Anthropic, see below):
 
-- audio recordings for transcription
+- audio for transcription: streamed live to the OpenAI Realtime API while you record (one WebSocket connection per dictation, closed afterwards). The recording is also written to a temporary file; if the live path fails, that file is uploaded to the OpenAI transcription endpoint instead
 - transcribed or typed text for rewriting
-- custom terms and prompt context if you configured them
+- custom terms and prompt context if you configured them (sent as keywords with the live session or the fallback request)
 
 When **Sicherer Lokaler Modus** is enabled and a WhisperKit/CoreML model is installed, transcription runs on your Mac and does not send audio to OpenAI. Rewriting workflows still require OpenAI and are paused while secure local mode is active.
 
@@ -17,6 +17,7 @@ You are responsible for your OpenAI account, API usage, costs, and data handling
 Blitztext Mail sends data to a second provider. When you use it, your Mac reads the mail selected in Apple Mail and sends it directly to the Anthropic API together with your dictated points:
 
 - the full selected message: subject, sender, date, recipient addresses (To/Cc), and the complete text including the quoted thread history, truncated to roughly 40,000 characters
+- new mail mode only: an excerpt (up to about 4,000 characters) of the newest mail you received from the first To recipient, found by searching all Mail accounts and mailboxes for the recipient's name, together with its sender, address and date; it is used to choose Du/Sie and is not sent if no such mail exists
 - the transcript of your dictation (the audio itself still goes to OpenAI for transcription, as in the other workflows)
 
 This includes personal data of third parties, such as names, addresses, and whatever else the thread contains. Only use this workflow if you are allowed to pass the content of the mails you answer to Anthropic. Nothing is sent to Anthropic unless you start Blitztext Mail. Blitztext never sends or saves mail; it only pastes the reply text at the cursor of your reply window.
@@ -30,7 +31,7 @@ The app stores:
 - your OpenAI API key (and, if set, your Anthropic API key) in the user's macOS Keychain
 - workflow settings in local app support storage
 - optional WhisperKit/CoreML model folders in local app support storage
-- temporary audio files while a transcription is being processed; the app attempts to delete each recording when the workflow ends or is cancelled
+- temporary audio files while a transcription is being processed (they are kept during a live dictation as fallback); the app attempts to delete each recording when the workflow ends or is cancelled
 
 Workflow output may also be placed on your clipboard so it can be pasted into another app. Auto-paste marks the clipboard entry as concealed for compatible clipboard managers, but the generated text intentionally remains on the clipboard as a fallback if automatic paste is blocked. Clipboard managers, macOS, or other apps may still observe clipboard contents while they are present.
 

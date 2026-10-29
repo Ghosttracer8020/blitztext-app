@@ -107,12 +107,18 @@ protocol Workflow: AnyObject, Observable {
     var phase: WorkflowPhase { get set }
     var isRecording: Bool { get }
     var audioLevel: Float { get }
+    /// Five band levels (0...1, lowest first) for the pill; empty if unavailable.
+    var audioBands: [Float] { get }
     var onOutput: WorkflowOutputHandler? { get set }
     var onPhaseChange: WorkflowPhaseChangeHandler? { get set }
 
     func start()
     func stop()
     func reset()
+}
+
+extension Workflow {
+    var audioBands: [Float] { [] }
 }
 
 // MARK: - App Settings
@@ -128,6 +134,7 @@ struct AppSettings: Codable {
         WorkflowType.localTranscription.rawValue: rightOptionShortcut(keyCode: 37), // L
         WorkflowType.promptText.rawValue: rightOptionShortcut(keyCode: 35),         // P
         WorkflowType.mailReply.rawValue: MailReplyShortcutMigration.defaultShortcut, // M
+        MailReplyTypedShortcutMigration.shortcutID: MailReplyTypedShortcutMigration.defaultShortcut, // N
     ]
 
     private static func rightOptionShortcut(keyCode: Int) -> KeyboardShortcut {
@@ -147,6 +154,8 @@ struct AppSettings: Codable {
     var clipboardAutoClearEnabled: Bool = true
     /// True once the Blitztext Mail shortcut was offered to this profile.
     var hasMigratedMailReplyShortcut: Bool = true
+    /// True once the typed Blitztext Mail shortcut was offered to this profile.
+    var hasMigratedMailReplyTypedShortcut: Bool = true
 
     init(
         hotkeyMode: HotkeyMode = .hold,
@@ -156,7 +165,8 @@ struct AppSettings: Codable {
         hasAutoSelectedFastLocalModel: Bool = false,
         customShortcuts: [String: KeyboardShortcut] = AppSettings.defaultCustomShortcuts,
         clipboardAutoClearEnabled: Bool = true,
-        hasMigratedMailReplyShortcut: Bool = true
+        hasMigratedMailReplyShortcut: Bool = true,
+        hasMigratedMailReplyTypedShortcut: Bool = true
     ) {
         self.hotkeyMode = hotkeyMode
         self.hasSeenOnboarding = hasSeenOnboarding
@@ -166,6 +176,7 @@ struct AppSettings: Codable {
         self.customShortcuts = customShortcuts
         self.clipboardAutoClearEnabled = clipboardAutoClearEnabled
         self.hasMigratedMailReplyShortcut = hasMigratedMailReplyShortcut
+        self.hasMigratedMailReplyTypedShortcut = hasMigratedMailReplyTypedShortcut
     }
 
     enum CodingKeys: String, CodingKey {
@@ -177,6 +188,7 @@ struct AppSettings: Codable {
         case customShortcuts
         case clipboardAutoClearEnabled
         case hasMigratedMailReplyShortcut
+        case hasMigratedMailReplyTypedShortcut
     }
 
     /// Legacy key from the first hotkey iteration (right-Option letter map).
@@ -212,8 +224,14 @@ struct AppSettings: Codable {
             alreadyMigrated: try container.decodeIfPresent(Bool.self, forKey: .hasMigratedMailReplyShortcut) ?? false,
             defaults: AppSettings.defaultCustomShortcuts
         )
-        customShortcuts = resolved.shortcuts
+        let resolvedTyped = MailReplyTypedShortcutMigration.resolve(
+            stored: stored == nil ? nil : resolved.shortcuts,
+            alreadyMigrated: try container.decodeIfPresent(Bool.self, forKey: .hasMigratedMailReplyTypedShortcut) ?? false,
+            defaults: AppSettings.defaultCustomShortcuts
+        )
+        customShortcuts = resolvedTyped.shortcuts
         hasMigratedMailReplyShortcut = resolved.migrated
+        hasMigratedMailReplyTypedShortcut = resolvedTyped.migrated
         clipboardAutoClearEnabled = try container.decodeIfPresent(
             Bool.self,
             forKey: .clipboardAutoClearEnabled

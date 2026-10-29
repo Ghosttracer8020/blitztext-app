@@ -1054,9 +1054,17 @@ struct MailReplyActiveView: View {
                 autoPasteView(text: text)
 
             case .error(let msg):
-                errorView(message: msg) {
-                    workflow.reset()
-                    workflow.start()
+                errorView(
+                    message: msg,
+                    retryTitle: workflow.isTypedRun ? "Schlie\u{00DF}en" : "Nochmal versuchen"
+                ) {
+                    if workflow.isTypedRun {
+                        // Retrying needs Mail in front again, which the open popover prevents.
+                        NotificationCenter.default.post(name: .dismissPopover, object: nil)
+                    } else {
+                        workflow.reset()
+                        workflow.start()
+                    }
                 }
             }
         }
@@ -1138,7 +1146,11 @@ private func autoPasteView(text: String) -> some View {
     }
 }
 
-private func errorView(message: String, onRetry: @escaping () -> Void) -> some View {
+private func errorView(
+    message: String,
+    retryTitle: String = "Nochmal versuchen",
+    onRetry: @escaping () -> Void
+) -> some View {
     VStack(spacing: 10) {
         Spacer().frame(height: 16)
 
@@ -1160,7 +1172,7 @@ private func errorView(message: String, onRetry: @escaping () -> Void) -> some V
             .padding(.horizontal, 8)
 
         Button(action: onRetry) {
-            Text("Nochmal versuchen")
+            Text(retryTitle)
                 .font(.system(size: 12, weight: .medium))
                 .foregroundStyle(.primary)
                 .frame(maxWidth: .infinity)

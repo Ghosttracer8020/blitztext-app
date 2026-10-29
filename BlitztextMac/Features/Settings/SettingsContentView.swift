@@ -786,10 +786,23 @@ struct CustomizeSettingsView: View {
                     VStack(spacing: 6) {
                         ForEach(WorkflowType.allCases) { type in
                             HStack {
-                                Text(appState.displayName(for: type))
+                                Text(type == .mailReply
+                                     ? "\(appState.displayName(for: type)) \u{2013} diktieren"
+                                     : appState.displayName(for: type))
                                     .font(.system(size: 11.5, weight: .medium))
                                 Spacer()
-                                ShortcutRecorderView(type: type, appState: appState)
+                                ShortcutRecorderView(shortcutID: type.rawValue, appState: appState)
+                            }
+                            if type == .mailReply {
+                                HStack {
+                                    Text("\(appState.displayName(for: type)) \u{2013} tippen")
+                                        .font(.system(size: 11.5, weight: .medium))
+                                    Spacer()
+                                    ShortcutRecorderView(
+                                        shortcutID: MailReplyTypedShortcutMigration.shortcutID,
+                                        appState: appState
+                                    )
+                                }
                             }
                         }
                     }
@@ -1023,7 +1036,7 @@ struct CustomizeSettingsView: View {
                         }
                 }
 
-                Text("Leer = eingebaute Anweisung: Du/Sie und Ton aus dem Mailverlauf, nichts dazuerfinden, Gru\u{00DF} mit \u{201E}Ben\u{201C} (Du) oder \u{201E}Ben Scheffler\u{201C} (Sie). Eine eigene Anweisung ersetzt sie komplett; die Eigennamen-Liste wird angeh\u{00E4}ngt. Braucht den Anthropic API Key unter Zugang. Funktioniert nur im Antwortfenster von Apple Mail.")
+                Text("Leer = eingebaute Anweisung: Du/Sie und Ton aus dem Mailverlauf, nichts dazuerfinden, Gru\u{00DF} mit \u{201E}Ben\u{201C} (Du) oder \u{201E}Ben Scheffler\u{201C} (Sie). Eine eigene Anweisung ersetzt sie komplett; die Eigennamen-Liste wird angeh\u{00E4}ngt. Sie gilt auch f\u{00FC}r neue Mails; dort bleiben Sie-Standard, Begr\u{00FC}\u{00DF}ung, Gru\u{00DF} und Ausgabeformat fest, die Anweisung sollte also nur auf den Ton wirken. Braucht den Anthropic API Key unter Zugang. Funktioniert nur im Antwort- oder Neue-Mail-Fenster von Apple Mail.")
                     .font(.system(size: 10.5))
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -1104,7 +1117,8 @@ struct CustomizeSettingsView: View {
 /// While recording, both hotkey systems are suspended so the pressed combo
 /// does not trigger a workflow.
 private struct ShortcutRecorderView: View {
-    let type: WorkflowType
+    /// WorkflowType raw value, or the typed Blitztext Mail shortcut ID.
+    let shortcutID: String
     @Bindable var appState: AppState
     @State private var keyMonitor: Any?
     @State private var timeoutTask: Task<Void, Never>?
@@ -1124,11 +1138,11 @@ private struct ShortcutRecorderView: View {
     ]
 
     private var currentShortcut: KeyboardShortcut? {
-        appState.appSettings.customShortcuts[type.rawValue]
+        appState.appSettings.customShortcuts[shortcutID]
     }
 
     private var isRecording: Bool {
-        appState.recordingShortcutFor == type
+        appState.recordingShortcutFor == shortcutID
     }
 
     private var anotherFieldIsRecording: Bool {
@@ -1151,7 +1165,7 @@ private struct ShortcutRecorderView: View {
 
             if currentShortcut != nil && !isRecording {
                 Button {
-                    appState.setShortcut(nil, for: type)
+                    appState.setShortcut(nil, forID: shortcutID)
                 } label: {
                     Image(systemName: "xmark.circle.fill")
                         .font(.system(size: 11))
@@ -1169,7 +1183,7 @@ private struct ShortcutRecorderView: View {
 
     private func beginRecording() {
         guard keyMonitor == nil, appState.recordingShortcutFor == nil else { return }
-        appState.beginShortcutCapture(for: type)
+        appState.beginShortcutCapture(for: shortcutID)
         pendingModifierFlags = 0
 
         keyMonitor = NSEvent.addLocalMonitorForEvents(matching: [.keyDown, .flagsChanged]) { event in
@@ -1187,7 +1201,7 @@ private struct ShortcutRecorderView: View {
             case (53, true): // Escape without modifiers: cancel
                 cancelRecording()
             case (51, true): // Delete without modifiers: clear binding
-                appState.setShortcut(nil, for: type)
+                appState.setShortcut(nil, forID: shortcutID)
                 cancelRecording()
             default:
                 let shortcut = KeyboardShortcut(
@@ -1195,7 +1209,7 @@ private struct ShortcutRecorderView: View {
                     rawModifierFlags: UInt64(event.modifierFlags.rawValue)
                 )
                 if !Self.blockedShortcuts.contains(shortcut) {
-                    appState.setShortcut(shortcut, for: type)
+                    appState.setShortcut(shortcut, forID: shortcutID)
                 }
                 // The recorded key may still be physically held: keep
                 // swallowing it so the fresh binding does not fire instantly.
@@ -1226,7 +1240,7 @@ private struct ShortcutRecorderView: View {
             // All modifiers released without a key: modifier-only shortcut —
             // a single modifier (right-Option alone) or a chord (rAlt+rCmd).
             let shortcut = KeyboardShortcut(keyCode: nil, rawModifierFlags: pendingModifierFlags)
-            appState.setShortcut(shortcut, for: type)
+            appState.setShortcut(shortcut, forID: shortcutID)
             finishRecording(drainingKeyCode: nil)
         }
     }

@@ -78,6 +78,10 @@ final class AppState {
         didSet { saveSettings() }
     }
 
+    let mailInputPanel = MailReplyInputPanelController()
+    let mailHintsPanel = MailReplyHintsPanelController()
+    private var pendingMailHints: (hints: [MailReplyHint], window: MailReplyWindowRef?)?
+
     // Hotkeys
     let hotkeyService = HotkeyService()
     let customHotkeyService = CustomHotkeyService()
@@ -113,12 +117,13 @@ final class AppState {
 
     /// Workflow whose shortcut is currently being recorded; other recorder
     /// fields disable themselves so only one capture runs at a time.
-    var recordingShortcutFor: WorkflowType?
+    /// Shortcut ID: a WorkflowType raw value, or the typed Blitztext Mail ID.
+    var recordingShortcutFor: String?
 
     /// While the settings UI records a new shortcut, both hotkey systems are
     /// suspended so the recorded keys do not trigger a workflow.
-    func beginShortcutCapture(for type: WorkflowType) {
-        recordingShortcutFor = type
+    func beginShortcutCapture(for id: String) {
+        recordingShortcutFor = id
         hotkeyService.isSuspended = true
         customHotkeyService.setSuspended(true)
     }
@@ -138,14 +143,19 @@ final class AppState {
     /// with more specific combos (right-Option+right-Command, right-Option+J)
     /// via switch-over at runtime.
     func setShortcut(_ shortcut: KeyboardShortcut?, for type: WorkflowType) {
+        setShortcut(shortcut, forID: type.rawValue)
+    }
+
+    /// `id`: a WorkflowType raw value or `MailReplyTypedShortcutMigration.shortcutID`.
+    func setShortcut(_ shortcut: KeyboardShortcut?, forID id: String) {
         var shortcuts = appSettings.customShortcuts
         if let shortcut {
             for (workflow, existing) in shortcuts where existing == shortcut {
                 shortcuts.removeValue(forKey: workflow)
             }
-            shortcuts[type.rawValue] = shortcut
+            shortcuts[id] = shortcut
         } else {
-            shortcuts.removeValue(forKey: type.rawValue)
+            shortcuts.removeValue(forKey: id)
         }
         appSettings.customShortcuts = shortcuts
     }
@@ -180,6 +190,12 @@ final class AppState {
     /// same modifiers no longer fires (see `BuiltInHotkey`), so nil is
     /// returned and the row shows no badge instead of a dead key hint.
     func hotkeyLabel(for type: WorkflowType) -> String? {
+        if type == .mailReply {
+            // Dictate and type shortcut, separated by " / " (see HotkeyBadge).
+            let labels = [type.rawValue, MailReplyTypedShortcutMigration.shortcutID]
+                .compactMap { appSettings.customShortcuts[$0]?.displayString }
+            return labels.isEmpty ? nil : labels.joined(separator: " / ")
+        }
         if let shortcut = appSettings.customShortcuts[type.rawValue] {
             return shortcut.displayString
         }
@@ -203,6 +219,7 @@ final class AppState {
               let claimantID = BuiltInHotkey.claimant(of: hotkey, in: appSettings.customShortcuts) else {
             return nil
         }
+        if claimantID == MailReplyTypedShortcutMigration.shortcutID { return .mailReply }
         return WorkflowType(rawValue: claimantID)
     }
 
@@ -263,6 +280,8 @@ final class AppState {
         }
 
         activeWorkflow?.stop()
+        mailHintsPanel.dismiss()
+        pendingMailHints = nil
         menuBarStatusResetTask?.cancel()
         workflowCleanupTask?.cancel()
         activeLaunchSource = source
@@ -340,6 +359,7 @@ final class AppState {
                 language: transcriptionSettings.language
             )
             configureWorkflowHandlers(workflow)
+            configureMailHints(workflow)
             activeWorkflow = workflow
             workflow.start()
         }
@@ -373,6 +393,86 @@ final class AppState {
                 : KeychainService.isConfigured
         case .textImprover, .dampfAblassen, .emojiText, .promptText, .mailReply:
             return !appSettings.secureLocalModeEnabled && KeychainService.isConfigured
+        }
+    }
+
+    // MARK: - Typed Blitztext Mail
+
+    /// Typed variant of Blitztext Mail (single press, no recording): checks and
+    /// mail capture run now, while Mail is still frontmost, then the input
+    /// panel opens. Errors surface like the dictated path.
+    func startTypedMailReply() {
+        if mailInputPanel.isVisible {
+            mailInputPanel.bringToFront()
+            return
+        }
+
+        activeWorkflow?.stop()
+        mailHintsPanel.dismiss()
+        pendingMailHints = nil
+        menuBarStatusResetTask?.cancel()
+        workflowCleanupTask?.cancel()
+        activeLaunchSource = .hotkeyBackground
+        activePasteTarget = capturePasteTarget(for: .hotkeyBackground)
+
+        let workflow = MailReplyWorkflow(
+            settings: mailReplySettings,
+            customTerms: textImprovementSettings.customTerms,
+            language: transcriptionSettings.language
+        )
+        configureWorkflowHandlers(workflow)
+        configureMailHints(workflow)
+        workflow.onClipboardFallback = { [weak self] text in
+            self?.copyToClipboard(text)
+        }
+        workflow.onTypedInputNeeded = { [weak self, weak workflow] title, window, submit, cancel in
+            guard let self, workflow != nil else { return }
+            self.mailInputPanel.present(
+                title: title,
+                screen: MailWindowFocusService.screen(of: window),
+                onSubmit: submit,
+                onCancel: cancel
+            )
+        }
+        workflow.onTypedInputDismiss = { [weak self] in
+            self?.mailInputPanel.dismiss()
+        }
+        workflow.onTypedCancel = { [weak self, weak workflow] in
+            guard let self, let workflow, self.activeWorkflow === workflow else { return }
+            self.resetCurrentWorkflow()
+        }
+        activeWorkflow = workflow
+        page = .main
+
+        if appSettings.secureLocalModeEnabled {
+            workflow.phase = .error("Blitztext Mail ist im lokalen Modus pausiert.")
+            return
+        }
+        workflow.startTyped()
+    }
+
+    /// Stashes review hints; `handleWorkflowOutput` shows them after a
+    /// successful paste. The panel never takes focus from Mail.
+    private func configureMailHints(_ workflow: MailReplyWorkflow) {
+        workflow.onHints = { [weak self, weak workflow] hints, window in
+            guard let self, let workflow, self.activeWorkflow === workflow else { return }
+            self.pendingMailHints = (hints, window)
+        }
+        workflow.onNewMailBody = { [weak self, weak workflow] in
+            guard let self, let workflow, self.activeWorkflow === workflow else { return }
+            // Forget the previous paste: a fresh body must not inherit its leading space.
+            self.lastPasteDate = nil
+        }
+    }
+
+    private func presentMailHints(_ stash: (hints: [MailReplyHint], window: MailReplyWindowRef?), workflow: (any Workflow)?) {
+        guard let workflow, activeWorkflow === workflow else { return }
+        // Short delay so the panel appears after the pasted text.
+        Task { @MainActor [weak self] in
+            try? await Task.sleep(for: .milliseconds(150))
+            guard let self, self.activeWorkflow === workflow else { return }
+            let screen = MailWindowFocusService.screen(of: stash.window)
+            self.mailHintsPanel.present(hints: stash.hints, window: stash.window, screen: screen)
         }
     }
 
@@ -442,7 +542,9 @@ final class AppState {
 
     /// Copies the text, restores focus when needed, then simulates Cmd+V.
     /// The text intentionally remains on the clipboard as a fallback if paste is blocked.
-    private func pasteAtCursor(_ text: String, target: PasteTarget? = nil) {
+    /// `completion` reports whether the paste was actually performed (false:
+    /// no Accessibility trust, no target, or the target never became frontmost).
+    private func pasteAtCursor(_ text: String, target: PasteTarget? = nil, completion: ((Bool) -> Void)? = nil) {
         pendingPasteText = text
         writeSensitiveTextToPasteboard(text)
 
@@ -454,13 +556,15 @@ final class AppState {
         accessibilityPermissionGranted = trusted
         guard trusted else {
             menuBarStatus = .error(activeWorkflow?.type)
+            completion?(false)
             return
         }
         customHotkeyService.startIfNeeded()
 
         attemptPasteTrusted(
             target: target,
-            attemptsRemaining: Self.pasteRetryInitialAttempts
+            attemptsRemaining: Self.pasteRetryInitialAttempts,
+            completion: completion
         )
     }
 
@@ -619,7 +723,15 @@ final class AppState {
     }
 
     private func handleWorkflowOutput(_ text: String) {
-        pasteAtCursor(text, target: activePasteTarget)
+        // Mail hints are stashed by `onHints` right before `onOutput`; they
+        // are shown only once the paste really happened.
+        let mailHints = pendingMailHints
+        pendingMailHints = nil
+        let workflow = activeWorkflow
+        pasteAtCursor(text, target: activePasteTarget) { [weak self] pasted in
+            guard pasted, let mailHints else { return }
+            self?.presentMailHints(mailHints, workflow: workflow)
+        }
         if activeLaunchSource == .hotkeyBackground {
             page = .main
         }
@@ -713,7 +825,8 @@ final class AppState {
 
     private func attemptPasteTrusted(
         target: PasteTarget?,
-        attemptsRemaining: Int
+        attemptsRemaining: Int,
+        completion: ((Bool) -> Void)? = nil
     ) {
         let frontmostPid = NSWorkspace.shared.frontmostApplication?.processIdentifier
 
@@ -722,6 +835,7 @@ final class AppState {
                 finalizePendingPasteForInsertion(target: target)
                 if performPaste(target: target) {
                     scheduleClipboardAutoClear()
+                    completion?(true)
                     return
                 }
                 // Frontmost changed during the AX context lookup: fall
@@ -730,10 +844,12 @@ final class AppState {
 
             target.application.activate(options: [])
         } else {
+            completion?(false)
             return
         }
 
         guard attemptsRemaining > 0 else {
+            completion?(false)
             return
         }
 
@@ -750,7 +866,8 @@ final class AppState {
         DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
             self?.attemptPasteTrusted(
                 target: target,
-                attemptsRemaining: attemptsRemaining - 1
+                attemptsRemaining: attemptsRemaining - 1,
+                completion: completion
             )
         }
     }
