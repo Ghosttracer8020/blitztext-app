@@ -9,7 +9,7 @@ enum MailReplyPromptBuilder {
     static let pointsHeader = "=== STICHPUNKTE VON BEN ==="
     static let newMailHeader = "=== NEUE MAIL ==="
 
-    /// Header of the last mail from the recipient (compose mode only).
+    /// Header of the last mail from the other party (recipient in compose mode, sender in reply mode).
     static func lastMailHeader(name: String) -> String {
         "=== LETZTE MAIL VON \(name) AN BEN ==="
     }
@@ -35,11 +35,11 @@ enum MailReplyPromptBuilder {
 
     Sprache und Ton:
     - Antworte in der Sprache der letzten eingegangenen Nachricht (der neueste Teil der originalen Mail, ganz oben), nicht in der Sprache des Diktats.
-    - Übernimm Anrede und Ton aus dem Verlauf: Du oder Sie, Vorname oder Nachname, förmlich oder locker. Sieh dir an, wie Ben in früheren, zitierten Nachrichten selbst geschrieben hat (Begrüßung, Wortwahl), und schreib genauso. Ohne Hinweis im Verlauf: Sie-Form, neutral-freundlich.
+    - Anrede (Du oder Sie, Vorname oder Nachname) und Ton richten sich nach den Regeln im Abschnitt „Anrede in Antworten". Standard ist Du. Sieh dir an, wie Ben in früheren, zitierten Nachrichten selbst geschrieben hat (Begrüßung, Wortwahl), und schreib genauso.
     - Klingt Ben natürlich, nicht steifer als gesprochen und ohne Floskeln wie „Ich hoffe, es geht Ihnen gut".
 
     Aufbau:
-    1. Begrüßung passend zur Anrede im Verlauf (z. B. „Hallo Thomas," oder „Guten Tag Frau Meier,"), danach eine Leerzeile.
+    1. Begrüßung passend zur Anrede (z. B. „Hallo Thomas," bei Du oder „Guten Tag Frau Meier," bei Sie), danach eine Leerzeile.
     2. Der Inhalt in Absätzen nach Themen, je eine Leerzeile dazwischen. Ein Absatz darf mehrere Sätze haben.
     3. Eine Leerzeile, dann der Gruß in zwei Zeilen. Bei Du: „Liebe Grüße" oder „Viele Grüße" (je nach Ton), darunter „Ben". Bei Sie: „Viele Grüße", darunter „Ben Scheffler". In anderer Sprache die dort übliche Formel, darunter derselbe Name nach derselben Regel.
 
@@ -60,6 +60,19 @@ enum MailReplyPromptBuilder {
       - schon_beantwortet: Ben fragt nach etwas oder bittet um eine Info, die im Verlauf bereits steht (Info nennen).
       - offen: eine konkrete Frage oder Bitte der letzten eingegangenen Nachricht, auf die Bens Stichpunkte nicht eingehen.
     - Keine Stilhinweise und keine eigenen Vermutungen: jeder Hinweis braucht einen Beleg im Verlauf. Nichts gefunden: leeres Array.
+    """
+
+    /// Fixed section, always appended - also behind a custom instruction, so
+    /// the Du default and its order of evidence cannot be dropped.
+    static let replyAddressingContract = """
+    Anrede in Antworten (gilt immer, auch zusätzlich zu einer eigenen Anweisung):
+    Standard ist die Du-Form. Entscheide in dieser Reihenfolge:
+    1. Bens Stichpunkte gehen vor: Sagt er „siezen", „per Sie" oder „Sie-Form", schreib per Sie. Sagt er „duzen", „per Du" oder „Du-Form", schreib per Du. Das bloße Wort „Sie" oder „du" im Satz (z. B. „Sie kommt am Dienstag") ist keine Anweisung.
+    2. Sonst der Verlauf: Wie hat Ben die Person in zitierten früheren Nachrichten angesprochen, und wie spricht die Person Ben an? Eine Nachricht, die an jemand anderen gerichtet ist (anderer Vorname in der Begrüßung, „Hallo zusammen"), sagt nichts über Ben und diese Person.
+    3. Sonst, wenn der Abschnitt „LETZTE MAIL VON … AN BEN" vorhanden ist: Hat die Absenderadresse die Domain parkourone.com, schreib per Du. Andernfalls richte dich danach, wie diese Mail Ben anspricht. Spricht sie jemand anderen an (anderer Vorname in der Begrüßung, „Hallo zusammen"), sagt sie nichts über Ben und die Person: ignoriere sie für die Anrede und nimm Du.
+    4. Sonst schreib per Du.
+    - Bei Du ist die Begrüßung der Vorname („Hallo Jörg,"). Der Gruß bleibt wie beschrieben: bei Du „Liebe Grüße" oder „Viele Grüße" und „Ben", bei Sie „Viele Grüße" und „Ben Scheffler".
+    - Die letzte Mail dient nur der Anrede und den Namen. Greif ihren Inhalt nicht auf, und leite aus ihr keine Prüfhinweise ab: Hinweise kommen ausschließlich aus dem Verlauf der ORIGINALEN MAIL.
     """
 
     /// Prompt of the "Neue Mail" mode: a complete mail from Ben's points, no
@@ -91,7 +104,7 @@ enum MailReplyPromptBuilder {
     Sprache und Anrede:
     - Schreib auf Deutsch, außer Ben verlangt eine andere Sprache.
     - Standard ist die Du-Form. Entscheide in dieser Reihenfolge:
-      1. Bens Stichpunkte gehen vor: Sagt er „siezen", „Sie" oder „per Sie", schreib per Sie. Sagt er „duzen", „per Du" oder „Du", schreib per Du.
+      1. Bens Stichpunkte gehen vor: Sagt er „siezen", „per Sie" oder „Sie-Form", schreib per Sie. Sagt er „duzen", „per Du" oder „Du-Form", schreib per Du. Das bloße Wort „Sie" oder „du" im Satz (z. B. „Sie kommt am Dienstag") ist keine Anweisung.
       2. Sonst, wenn der Abschnitt „LETZTE MAIL VON … AN BEN" vorhanden ist: Hat die Absenderadresse die Domain parkourone.com, schreib per Du. Andernfalls richte dich danach, wie die Person Ben anspricht und wie Ben sie in zitierten früheren Mails angesprochen hat. Ist das nicht eindeutig, schreib per Du.
       3. Gibt es keinen solchen Abschnitt, schreib per Du.
     - Die letzte Mail dient nur der Anrede und den Namen. Greif ihren Inhalt nicht auf, außer Bens Stichpunkte tun es.
@@ -111,7 +124,7 @@ enum MailReplyPromptBuilder {
 
     static func systemPrompt(customInstruction: String, customTerms: [String]) -> String {
         let trimmed = customInstruction.trimmingCharacters(in: .whitespacesAndNewlines)
-        var prompt = (trimmed.isEmpty ? defaultSystemPrompt : trimmed) + "\n\n" + hintContract
+        var prompt = (trimmed.isEmpty ? defaultSystemPrompt : trimmed) + "\n\n" + hintContract + "\n\n" + replyAddressingContract
 
         if !customTerms.isEmpty {
             prompt += "\n\nWichtig: Diese Eigennamen und Fachbegriffe müssen exakt so geschrieben werden: \(customTerms.joined(separator: ", "))"
@@ -149,16 +162,7 @@ enum MailReplyPromptBuilder {
 
         var historySection = ""
         if let history, let name = context.toRecipients.first {
-            historySection = [
-                lastMailHeader(name: name),
-                "Absender: \(history.sender)",
-                "Datum: \(history.dateReceived)",
-                "",
-                "Auszug:",
-                history.excerpt,
-                "",
-                "",
-            ].joined(separator: "\n")
+            historySection = Self.historySection(name: name, history: history)
         }
 
         return """
@@ -170,7 +174,31 @@ enum MailReplyPromptBuilder {
         """
     }
 
-    static func userMessage(context: MailContext, transcript: String) -> String {
+    /// The "LETZTE MAIL VON" block, ending with a blank line.
+    static func historySection(name: String, history: MailHistory) -> String {
+        [
+            lastMailHeader(name: name),
+            "Absender: \(history.sender)",
+            "Datum: \(history.dateReceived)",
+            "",
+            "Auszug:",
+            history.excerpt,
+            "",
+            "",
+        ].joined(separator: "\n")
+    }
+
+    /// Display name of "Name <addr>"; the whole sender if there is no name.
+    static func displayName(ofSender sender: String) -> String {
+        let name = sender.firstIndex(of: "<").map { String(sender[..<$0]) } ?? sender
+        let cleaned = name.trimmingCharacters(in: CharacterSet.whitespaces.union(CharacterSet(charactersIn: "\"'")))
+        return cleaned.isEmpty ? sender : cleaned
+    }
+
+    /// `history` is the newest mail from the sender that addresses Ben; the
+    /// section sits between the original mail and the points and is left out
+    /// without it.
+    static func userMessage(context: MailContext, history: MailHistory? = nil, transcript: String) -> String {
         var header = [
             "Betreff: \(context.subject)",
             "Von: \(context.sender)",
@@ -183,6 +211,11 @@ enum MailReplyPromptBuilder {
         }
         header.append("Datum: \(context.dateReceived)")
 
+        var historySection = ""
+        if let history {
+            historySection = Self.historySection(name: displayName(ofSender: context.sender), history: history)
+        }
+
         return """
         \(originalMailHeader)
         \(header.joined(separator: "\n"))
@@ -190,7 +223,7 @@ enum MailReplyPromptBuilder {
         Inhalt:
         \(context.content)
 
-        \(pointsHeader)
+        \(historySection)\(pointsHeader)
         \(transcript)
         """
     }

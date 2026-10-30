@@ -32,8 +32,8 @@ final class MailReplyWorkflow: Workflow {
     /// Mail on the AppleScript queue and may queue behind a history lookup).
     private var captureTask: Task<Void, Never>?
     private var processingTask: Task<Void, Never>?
-    /// Compose mode: the lookup of the newest mail from the first recipient,
-    /// started at capture and awaited right before the Anthropic request.
+    /// The lookup of a mail from the other party (first recipient in compose
+    /// mode, sender in reply mode), started at capture and awaited right before the Anthropic request.
     private var historyTask: Task<MailHistory?, Never>?
 
     /// Mail state remembered for the typed flow while the input panel is open.
@@ -285,13 +285,20 @@ final class MailReplyWorkflow: Workflow {
 
     // MARK: - Shared: Claude -> paste
 
-    /// Compose mode only: starts the lookup of the newest mail from the first
-    /// To recipient, concurrently with dictation or typing. The work runs on
-    /// the AppleScript queue, not on the main thread.
+    /// Starts the lookup of a mail from the other party (compose: first To
+    /// recipient, reply: the selected message's sender, not Ben himself),
+    /// concurrently with dictation or typing. The work runs on the
+    /// AppleScript queue, not on the main thread.
     private func startHistoryLookup(for content: MailCaptureContent?) {
         historyTask = nil
-        guard case .compose(let context)? = content, let name = context.toRecipients.first else { return }
-        historyTask = Task { await MailHistoryService.lookup(displayName: name) }
+        let other: String?
+        switch content {
+        case .compose(let context)?: other = context.toRecipients.first
+        case .reply(let context)?: other = context.sender
+        case nil: other = nil
+        }
+        guard let other else { return }
+        historyTask = Task { await MailHistoryService.lookup(sender: other) }
     }
 
     private static func typedPanelTitle(for content: MailCaptureContent) -> String {
@@ -320,12 +327,16 @@ final class MailReplyWorkflow: Workflow {
         var hints: [MailReplyHint] = []
         switch capture.content {
         case .reply(let context):
+            // Bounded by the lookup's own budget; no history on any failure.
+            let history = await historyTask?.value
+            historyTask = nil
+            if Task.isCancelled { return }
             let result = try await AnthropicService.completeReply(
                 systemPrompt: MailReplyPromptBuilder.systemPrompt(
                     customInstruction: settings.systemPrompt,
                     customTerms: customTerms
                 ),
-                userMessage: MailReplyPromptBuilder.userMessage(context: context, transcript: points)
+                userMessage: MailReplyPromptBuilder.userMessage(context: context, history: history, transcript: points)
             )
             reply = result.reply
             hints = result.hints

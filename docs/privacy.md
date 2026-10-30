@@ -17,7 +17,7 @@ You are responsible for your OpenAI account, API usage, costs, and data handling
 Blitztext Mail sends data to a second provider. When you use it, your Mac reads the mail selected in Apple Mail and sends it directly to the Anthropic API together with your dictated points:
 
 - the full selected message: subject, sender, date, recipient addresses (To/Cc), and the complete text including the quoted thread history, truncated to roughly 40,000 characters
-- new mail mode only: an excerpt (up to about 4,000 characters) of the newest mail you received from the first To recipient, found by searching all Mail accounts and mailboxes for the recipient's name, together with its sender, address and date; it is used to choose Du/Sie and is not sent if no such mail exists
+- an excerpt (up to about 4,000 characters) of a mail you received from the other party (new mail mode: the first To recipient; reply mode: the sender of the selected message), preferably the newest one whose greeting addresses you, found by searching all Mail accounts and mailboxes for the name or address, together with its sender, address and date; it is used to choose Du/Sie and is not sent if no such mail exists
 - the transcript of your dictation (the audio itself still goes to OpenAI for transcription, as in the other workflows)
 
 This includes personal data of third parties, such as names, addresses, and whatever else the thread contains. Only use this workflow if you are allowed to pass the content of the mails you answer to Anthropic. Nothing is sent to Anthropic unless you start Blitztext Mail. Blitztext never sends or saves mail; it only pastes the reply text at the cursor of your reply window.

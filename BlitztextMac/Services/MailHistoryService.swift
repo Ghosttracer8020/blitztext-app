@@ -3,8 +3,9 @@ import os
 
 private let mailHistoryLogger = Logger(subsystem: "app.blitztext.mac", category: "MailHistory")
 
-/// The newest mail Ben received from the recipient of a new mail. Used only
-/// to decide Du/Sie and to get names right.
+/// A mail Ben received from the other party (recipient of a new mail, sender
+/// of the mail being answered): the newest one that addresses Ben, else the
+/// newest. Used only to decide Du/Sie and to get names right.
 struct MailHistory: Equatable {
     /// Sender as Mail reports it: display name plus address.
     var sender: String
@@ -27,6 +28,9 @@ enum MailHistoryService {
     /// deadline is the remaining budget minus this, so the last event of a
     /// late iteration still ends within the budget.
     static let eventTimeoutSeconds = 4
+    /// Message bodies read per lookup, newest first. Dates are cheap, bodies
+    /// are not.
+    static let maxContentReads = 6
 
     // MARK: - Pure helpers
 
@@ -36,6 +40,39 @@ enum MailHistoryService {
             .components(separatedBy: .controlCharacters).joined(separator: " ")
             .split(whereSeparator: { $0.isWhitespace }).joined(separator: " ")
         return name.count >= minNameLength ? name : nil
+    }
+
+    /// The needle for the sender filter: the bare address of "Name <addr>"
+    /// (more precise), else the cleaned display name.
+    static func searchNeedle(from sender: String) -> String? {
+        if let open = sender.lastIndex(of: "<"), let close = sender.lastIndex(of: ">"), open < close {
+            let address = sender[sender.index(after: open)..<close].trimmingCharacters(in: .whitespaces)
+            if address.contains("@"), !address.contains(where: { $0.isWhitespace }) { return address }
+        }
+        return searchName(from: sender)
+    }
+
+    /// True if the sender is Ben himself; no history is looked up for him.
+    static func isBen(_ sender: String) -> Bool {
+        let lowered = sender.lowercased()
+        if lowered.contains("scheffler") || lowered.contains("ben@parkourone.") { return true }
+        let name = lowered.firstIndex(of: "<").map { String(lowered[..<$0]) } ?? lowered
+        return name.trimmingCharacters(in: CharacterSet.whitespaces.union(CharacterSet(charactersIn: "\"'"))) == "ben"
+    }
+
+    /// True if the greeting of the mail (first three non-empty lines, first
+    /// 300 characters) addresses Ben: "Ben" as a word or "Scheffler". A mail
+    /// to someone else ("Guten Morgen Christoph,") says nothing about the
+    /// Du/Sie between Ben and the sender.
+    static func addressesBen(_ content: String) -> Bool {
+        let greeting = content.prefix(300)
+            .split(whereSeparator: \.isNewline)
+            .map { $0.trimmingCharacters(in: .whitespaces) }
+            .filter { !$0.isEmpty }
+            .prefix(3)
+            .joined(separator: "\n")
+        return greeting.range(of: #"(?<![\p{L}\p{N}])Ben(?![\p{L}\p{N}])"#, options: .regularExpression) != nil
+            || greeting.range(of: "Scheffler", options: .caseInsensitive) != nil
     }
 
     /// Escapes text for use inside an AppleScript string literal.
@@ -60,7 +97,7 @@ enum MailHistoryService {
         skippedMailboxWords.map { "\"\(escapeForAppleScript($0))\"" }.joined(separator: ", ")
     }
 
-    /// One match per mailbox: the newest message of that mailbox.
+    /// One of the newest matching messages across all mailboxes.
     struct Candidate: Equatable {
         var date: Date
         var dateText: String
@@ -73,12 +110,18 @@ enum MailHistoryService {
         candidates.max { $0.date < $1.date }
     }
 
+    /// The newest candidate whose greeting addresses Ben, else the newest.
+    static func preferred(of candidates: [Candidate]) -> Candidate? {
+        let newestFirst = candidates.sorted { $0.date > $1.date }
+        return newestFirst.first { addressesBen($0.content) } ?? newestFirst.first
+    }
+
     /// The lookup script. Mail evaluates `sender contains` itself, so only
-    /// matching messages cross the process boundary. It returns the newest
-    /// match of every mailbox that has one (date, date text, sender, content
-    /// truncated); Swift picks the overall newest (`newest(of:)`). The loops
-    /// stop once `deadlineSeconds` have passed, in both the mailbox and the
-    /// account loop.
+    /// matching messages are touched. Pass 1 collects date and reference of
+    /// every match in all non-skipped mailboxes (cheap); pass 2 reads the
+    /// bodies of the `maxContentReads` newest and returns them (date, date
+    /// text, sender, content truncated). Swift picks with `preferred(of:)`.
+    /// All loops stop once `deadlineSeconds` have passed.
     static func script(
         forName name: String,
         deadlineSeconds: Int = 13,
@@ -90,7 +133,9 @@ enum MailHistoryService {
             set needle to "\(escapeForAppleScript(name))"
             set startTime to current date
             set expired to false
-            set results to {}
+            set pool to {}
+            set poolDates to {}
+            set seenIds to {}
             set skipWords to {\(skipWordsLiteral)}
             repeat with a in accounts
                 if expired then exit repeat
@@ -112,24 +157,51 @@ enum MailHistoryService {
                             -- One whose-query per mailbox; dates are read per message because
                             -- `date received of <list>` fails, and `dates` is a reserved class name.
                             set found to (messages of mb whose sender contains needle)
-                            set n to count of found
-                            if n > 0 then
-                                set m to item 1 of found
-                                set bestDate to date received of m
-                                repeat with i from 2 to n
-                                    set dr to date received of (item i of found)
-                                    if dr > bestDate then
-                                        set bestDate to dr
-                                        set m to item i of found
-                                    end if
-                                end repeat
-                                set c to content of m
-                                if (length of c) > \(maxExcerptCharacters) then set c to text 1 thru \(maxExcerptCharacters) of c
-                                set end of results to {bestDate, bestDate as string, sender of m, c}
-                            end if
+                            repeat with i from 1 to count of found
+                                if ((current date) - startTime) > \(deadlineSeconds) then
+                                    set expired to true
+                                    exit repeat
+                                end if
+                                set m to item i of found
+                                -- The same mail often sits in several mailboxes (Gmail: inbox and All Mail).
+                                set mid to ""
+                                try
+                                    set mid to message id of m
+                                end try
+                                if mid is "" or seenIds does not contain mid then
+                                    if mid is not "" then set end of seenIds to mid
+                                    set end of poolDates to date received of m
+                                    set end of pool to m
+                                end if
+                            end repeat
                         end try
                     end if
                 end repeat
+            end repeat
+            -- Newest first, bounded number of body reads.
+            set results to {}
+            repeat with k from 1 to \(maxContentReads)
+                if ((current date) - startTime) > \(deadlineSeconds) then exit repeat
+                set bestIdx to 0
+                repeat with i from 1 to count of poolDates
+                    set d to item i of poolDates
+                    if d is not missing value then
+                        if bestIdx is 0 then
+                            set bestIdx to i
+                        else if d > (item bestIdx of poolDates) then
+                            set bestIdx to i
+                        end if
+                    end if
+                end repeat
+                if bestIdx is 0 then exit repeat
+                try
+                    set m to item bestIdx of pool
+                    set bestDate to item bestIdx of poolDates
+                    set c to content of m
+                    if (length of c) > \(maxExcerptCharacters) then set c to text 1 thru \(maxExcerptCharacters) of c
+                    set end of results to {bestDate, bestDate as string, sender of m, c}
+                end try
+                set item bestIdx of poolDates to missing value
             end repeat
             return results
         end tell
@@ -163,8 +235,10 @@ enum MailHistoryService {
     /// error, timeout or when nothing matches. The budget counts from this
     /// call: a job that only gets the queue after the caller gave up is
     /// skipped, and a late one gets a script deadline of what is left.
-    static func lookup(displayName: String) async -> MailHistory? {
-        guard let name = searchName(from: displayName) else { return nil }
+    /// `sender` is a display name (compose) or "Name <addr>" (reply); the
+    /// address is searched when present.
+    static func lookup(sender: String) async -> MailHistory? {
+        guard !isBen(sender), let name = searchNeedle(from: sender) else { return nil }
         let enqueuedAt = Date()
         return await withCheckedContinuation { continuation in
             let once = OnceResume(continuation)
@@ -199,7 +273,7 @@ enum MailHistoryService {
                 else { return nil }
                 return Candidate(date: date, dateText: item.atIndex(2)?.stringValue ?? "", sender: sender, content: content)
             }
-            guard let best = newest(of: candidates) else { return nil }
+            guard let best = preferred(of: candidates) else { return nil }
             return parse(sender: best.sender, dateReceived: best.dateText, content: best.content, name: name)
         } catch {
             mailHistoryLogger.error("History lookup failed: \(error.localizedDescription, privacy: .private)")

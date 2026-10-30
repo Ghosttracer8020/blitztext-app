@@ -147,6 +147,55 @@ final class MailComposeTests: XCTestCase {
         XCTAssertNil(MailHistoryService.newest(of: []))
     }
 
+    func testAddressesBenLooksAtTheGreetingOnly() {
+        XCTAssertTrue(MailHistoryService.addressesBen("Hallo Ben,\n\nkurze Frage"))
+        XCTAssertTrue(MailHistoryService.addressesBen("\n\n  Lieber Ben!\nText"))
+        XCTAssertTrue(MailHistoryService.addressesBen("Sehr geehrter Herr Scheffler,\nText"))
+        XCTAssertFalse(MailHistoryService.addressesBen("Guten Morgen Christoph,"))
+        XCTAssertFalse(MailHistoryService.addressesBen("Guten Morgen Christoph,\n\nText\nmehr Text\nHallo Ben, spät"))
+        XCTAssertFalse(MailHistoryService.addressesBen("Bens Team grüsst\nText"))
+        XCTAssertFalse(MailHistoryService.addressesBen("Hallo zusammen,\nText"))
+        XCTAssertFalse(MailHistoryService.addressesBen(""))
+    }
+
+    func testPreferredTakesNewestMailAddressingBenElseNewest() {
+        func candidate(_ offset: TimeInterval, _ content: String) -> MailHistoryService.Candidate {
+            .init(date: Date(timeIntervalSince1970: 1_700_000_000 + offset), dateText: content, sender: "Anna", content: content)
+        }
+        let list = [
+            candidate(900, "Guten Morgen Christoph,"),
+            candidate(500, "Hallo Ben,"),
+            candidate(100, "Hallo Ben, alt"),
+        ]
+        XCTAssertEqual(MailHistoryService.preferred(of: list)?.content, "Hallo Ben,")
+        XCTAssertEqual(MailHistoryService.preferred(of: [list[0]])?.content, "Guten Morgen Christoph,")
+        XCTAssertNil(MailHistoryService.preferred(of: []))
+    }
+
+    func testSearchNeedlePrefersAddressElseName() {
+        XCTAssertEqual(MailHistoryService.searchNeedle(from: "Jörg Birle <joerg@firma.de>"), "joerg@firma.de")
+        XCTAssertEqual(MailHistoryService.searchNeedle(from: "Jörg Birle"), "Jörg Birle")
+        XCTAssertEqual(MailHistoryService.searchNeedle(from: "\"Birle, Jörg\" <j@f.de>"), "j@f.de")
+        XCTAssertNil(MailHistoryService.searchNeedle(from: "Al"))
+    }
+
+    func testIsBenRecognizesOwnSender() {
+        XCTAssertTrue(MailHistoryService.isBen("Ben Scheffler <ben@parkourone.com>"))
+        XCTAssertTrue(MailHistoryService.isBen("ben@parkourone.com"))
+        XCTAssertTrue(MailHistoryService.isBen("Ben <b@x.ch>"))
+        XCTAssertFalse(MailHistoryService.isBen("Bens Team <t@x.ch>"))
+        XCTAssertFalse(MailHistoryService.isBen("Jörg Birle <joerg@firma.de>"))
+    }
+
+    func testScriptBoundsContentReadsAndKeepsDeadlineInBothPhases() {
+        let script = MailHistoryService.script(forName: "a@b.ch", deadlineSeconds: 5)
+        XCTAssertTrue(script.contains("repeat with k from 1 to \(MailHistoryService.maxContentReads)"))
+        XCTAssertEqual(script.components(separatedBy: "> 5 then").count - 1, 3)
+        XCTAssertTrue(script.contains("seenIds does not contain mid"))
+        XCTAssertFalse(script.contains("set dates"))
+        XCTAssertFalse(script.contains("date received of found"))
+    }
+
     func testScriptDeadlineStopsBothLoopsAndStaysBelowBudget() {
         let script = MailHistoryService.script(forName: "Anna", deadlineSeconds: 5)
         XCTAssertTrue(script.contains("> 5 then"))
