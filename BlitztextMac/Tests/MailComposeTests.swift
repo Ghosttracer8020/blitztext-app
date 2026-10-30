@@ -83,7 +83,7 @@ final class MailComposeTests: XCTestCase {
                 XCTAssertTrue(prompt.contains("Guten Tag Frau Meier,"))
         XCTAssertTrue(prompt.contains("Vorname"))
         XCTAssertTrue(prompt.contains("neutrale Begrüßung"))
-        XCTAssertTrue(prompt.contains("„Liebe Grüße\" oder „Viele Grüße\""))
+        XCTAssertTrue(prompt.contains("Bei Du: „Viele Grüße\", darunter „Ben\". „Liebe Grüße\" nur, wenn Ben es im Diktat ausdrücklich sagt."))
         XCTAssertTrue(prompt.contains("darunter „Ben\""))
         XCTAssertTrue(prompt.contains("darunter „Ben Scheffler\""))
         XCTAssertTrue(prompt.contains("Nach dem Namen endet der Text"))

@@ -36,7 +36,7 @@ enum MailReplyPromptBuilder {
     Aufbau:
     1. Begrüßung passend zur Anrede (bei Du „Hallo Thomas,", bei Sie „Guten Tag Frau Meier,"), danach eine Leerzeile.
     2. Der Inhalt in Absätzen nach Themen, je eine Leerzeile dazwischen. Ein Absatz darf mehrere Sätze haben.
-    3. Eine Leerzeile, dann der Gruß in zwei Zeilen. Bei Du: „Liebe Grüße" oder „Viele Grüße" (je nach Ton), darunter „Ben". Bei Sie: „Viele Grüße", darunter „Ben Scheffler". In anderer Sprache die dort übliche Formel, darunter derselbe Name nach derselben Regel.
+    3. Eine Leerzeile, dann der Gruß in zwei Zeilen. Bei Du: „Viele Grüße", darunter „Ben". „Liebe Grüße" nur, wenn Ben es im Diktat ausdrücklich sagt. Bei Sie: „Viele Grüße", darunter „Ben Scheffler". In anderer Sprache die dort übliche Formel, darunter derselbe Name nach derselben Regel.
 
     Ausgabe:
     - Der Text der Antwort (Feld „reply") enthält NUR die Antwort, als reinen Text mit Absätzen. Kein Betreff, kein zitierter Text, keine Überschrift, kein Markdown, keine Anführungszeichen, keine Erklärungen, keine Rückfragen.
@@ -63,7 +63,7 @@ enum MailReplyPromptBuilder {
     Anrede in Antworten (gilt immer, auch zusätzlich zu einer eigenen Anweisung):
     Immer Du. Sie nur, wenn Bens Diktat ausdrücklich die Höflichkeitsform gegenüber dem Empfänger verwendet (Sie, Ihnen, Ihr, Ihre als Anrede, z. B. „bedank dich bei Ihnen", „können Sie …") oder Ben „siezen", „per Sie" oder „Sie-Form" sagt. „sie" im Sinn von „sie/ihnen" über Dritte (z. B. „Sie kommt am Dienstag") ist keine Anrede. Wie die Mail oder der Verlauf die Person anspricht (Du oder Sie, auch in zitierten Mails) und die Absender-Domain spielen für die Du/Sie-Wahl keine Rolle.
     - Begrüßung bei Du: der Vorname („Hallo Jörg,"), bei mehreren Empfängern „Hallo zusammen,". Bei Sie: „Guten Tag Frau Meier," oder „Guten Tag Herr Meier,"; ist das Geschlecht aus dem Namen nicht sicher erkennbar, „Guten Tag Thomas Meier,".
-    - Gruß bei Du: „Liebe Grüße" oder „Viele Grüße" und darunter „Ben". Bei Sie: „Viele Grüße" und darunter „Ben Scheffler". Keine Signatur.
+    - Gruß bei Du: „Viele Grüße" und darunter „Ben". „Liebe Grüße" nur, wenn Ben es im Diktat ausdrücklich sagt. Bei Sie: „Viele Grüße" und darunter „Ben Scheffler". Keine Signatur.
     """
 
     /// Prompt of the "Neue Mail" mode: a complete mail from Ben's points, no
@@ -100,7 +100,7 @@ enum MailReplyPromptBuilder {
     Aufbau:
     1. Begrüßung, danach eine Leerzeile.
     2. Der Inhalt in Absätzen nach Themen, je eine Leerzeile dazwischen. Ein Absatz darf mehrere Sätze haben.
-    3. Eine Leerzeile, dann der Gruß in zwei Zeilen. Bei Du: „Liebe Grüße" oder „Viele Grüße" (je nach Ton), darunter „Ben". Bei Sie: „Viele Grüße", darunter „Ben Scheffler". In anderer Sprache die dort übliche Formel, darunter derselbe Name nach derselben Regel.
+    3. Eine Leerzeile, dann der Gruß in zwei Zeilen. Bei Du: „Viele Grüße", darunter „Ben". „Liebe Grüße" nur, wenn Ben es im Diktat ausdrücklich sagt. Bei Sie: „Viele Grüße", darunter „Ben Scheffler". In anderer Sprache die dort übliche Formel, darunter derselbe Name nach derselben Regel.
     - Nach dem Namen endet der Text. Keine Signatur, keine Kontaktdaten – Mail fügt die Signatur selbst ein.
 
     Ausgabeformat:
