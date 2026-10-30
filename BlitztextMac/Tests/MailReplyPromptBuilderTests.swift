@@ -47,37 +47,23 @@ final class MailReplyPromptBuilderTests: XCTestCase {
         for instruction in ["", "Antworte kurz."] {
             let prompt = MailReplyPromptBuilder.systemPrompt(customInstruction: instruction, customTerms: [])
             XCTAssertTrue(prompt.contains(MailReplyPromptBuilder.replyAddressingContract))
-            XCTAssertTrue(prompt.contains("Standard ist die Du-Form"))
-            XCTAssertTrue(prompt.contains("Sonst schreib per Du."))
-            XCTAssertTrue(prompt.contains("sagt nichts über Ben und diese Person"))
-            XCTAssertTrue(prompt.contains("parkourone.com"))
-            XCTAssertTrue(prompt.contains("ignoriere sie für die Anrede"))
-            XCTAssertTrue(prompt.contains("ist keine Anweisung"))
-            XCTAssertTrue(prompt.contains("leite aus ihr keine Prüfhinweise ab"))
+            XCTAssertTrue(prompt.contains("Immer Du. Sie nur, wenn"))
+            XCTAssertTrue(prompt.contains("Sie, Ihnen, Ihr, Ihre"))
+            XCTAssertTrue(prompt.contains("„siezen\""))
+            XCTAssertTrue(prompt.contains("„per Sie\""))
+            XCTAssertTrue(prompt.contains("„Sie-Form\""))
+            XCTAssertTrue(prompt.contains("keine Anrede"))
+            XCTAssertTrue(prompt.contains("Hallo zusammen,"))
+            XCTAssertTrue(prompt.contains("Guten Tag Frau Meier,"))
+            XCTAssertFalse(prompt.contains("parkourone.com"))
+            XCTAssertFalse(prompt.contains("LETZTE MAIL"))
         }
-        XCTAssertFalse(MailReplyPromptBuilder.defaultSystemPrompt.contains("Sie-Form, neutral"))
     }
 
-    func testUserMessageWithHistoryPutsSectionBetweenMailAndPoints() {
-        let history = MailHistory(sender: "Thomas Meier <thomas@example.com>", dateReceived: "Freitag, 2. Oktober 2026", excerpt: "Hallo Ben,\nbis bald")
-        let message = MailReplyPromptBuilder.userMessage(context: context, history: history, transcript: "Zusage")
-        let mail = message.range(of: "=== ORIGINALE MAIL ===")!.lowerBound
-        let last = message.range(of: "=== LETZTE MAIL VON Thomas Meier AN BEN ===")!.lowerBound
-        let points = message.range(of: "=== STICHPUNKTE VON BEN ===")!.lowerBound
-        XCTAssertTrue(mail < last && last < points)
-        XCTAssertTrue(message.contains("Auszug:\nHallo Ben,\nbis bald"))
+    func testUserMessageHasNoHistorySection() {
+        let message = MailReplyPromptBuilder.userMessage(context: context, transcript: "Zusage")
+        XCTAssertFalse(message.contains("LETZTE MAIL"))
         XCTAssertTrue(message.hasSuffix("=== STICHPUNKTE VON BEN ===\nZusage"))
-    }
-
-    func testUserMessageWithoutHistoryHasNoHistorySection() {
-        XCTAssertFalse(MailReplyPromptBuilder.userMessage(context: context, transcript: "x").contains("LETZTE MAIL"))
-    }
-
-    func testDisplayNameOfSender() {
-        XCTAssertEqual(MailReplyPromptBuilder.displayName(ofSender: "Thomas Meier <t@x.ch>"), "Thomas Meier")
-        XCTAssertEqual(MailReplyPromptBuilder.displayName(ofSender: "\"Meier, Thomas\" <t@x.ch>"), "Meier, Thomas")
-        XCTAssertEqual(MailReplyPromptBuilder.displayName(ofSender: "<t@x.ch>"), "<t@x.ch>")
-        XCTAssertEqual(MailReplyPromptBuilder.displayName(ofSender: "t@x.ch"), "t@x.ch")
     }
 
     func testCustomTermsAreAppended() {
@@ -92,7 +78,7 @@ final class MailReplyPromptBuilderTests: XCTestCase {
         XCTAssertTrue(prompt.contains("Erfinde nichts dazu"))
         XCTAssertTrue(prompt.contains("kein ausformuliertes Diktat"))
         XCTAssertTrue(prompt.contains("Ordne jeden Stichpunkt der Stelle in ihrer Mail zu"))
-        XCTAssertTrue(prompt.contains("Du oder Sie"))
+        XCTAssertTrue(prompt.contains("Standard ist Du"))
         XCTAssertTrue(prompt.contains("Sprache der letzten eingegangenen Nachricht"))
         XCTAssertTrue(prompt.contains("Antworte auf die Mail"))
         XCTAssertTrue(prompt.contains("darunter „Ben\"."))

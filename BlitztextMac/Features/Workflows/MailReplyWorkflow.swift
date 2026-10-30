@@ -29,12 +29,9 @@ final class MailReplyWorkflow: Workflow {
     private let language: String
     private var mailCapture: MailCapture?
     /// The running mail capture; processing waits for it (the capture reads
-    /// Mail on the AppleScript queue and may queue behind a history lookup).
+    /// Mail on the AppleScript queue).
     private var captureTask: Task<Void, Never>?
     private var processingTask: Task<Void, Never>?
-    /// The lookup of a mail from the other party (first recipient in compose
-    /// mode, sender in reply mode), started at capture and awaited right before the Anthropic request.
-    private var historyTask: Task<MailHistory?, Never>?
 
     /// Mail state remembered for the typed flow while the input panel is open.
     private struct TypedSession {
@@ -110,7 +107,6 @@ final class MailReplyWorkflow: Workflow {
                 let capture = try await MailContextService.captureWithWindow()
                 guard let self, !Task.isCancelled else { return }
                 self.mailCapture = capture
-                self.startHistoryLookup(for: capture.content)
                 if self.recorder.isRecording { self.phase = .running("Aufnahme l\u{00E4}uft ...") }
             } catch {
                 guard let self, !Task.isCancelled else { return }
@@ -144,7 +140,6 @@ final class MailReplyWorkflow: Workflow {
             do {
                 let capture = try await MailContextService.captureWithWindow()
                 guard let self, !Task.isCancelled else { return }
-                self.startHistoryLookup(for: capture.content)
                 self.typedSession = TypedSession(capture: capture)
                 self.onTypedInputNeeded?(
                     Self.typedPanelTitle(for: capture.content),
@@ -183,8 +178,6 @@ final class MailReplyWorkflow: Workflow {
             NSRunningApplication(processIdentifier: pid)?.activate(options: [])
         }
         typedSession = nil
-        historyTask?.cancel()
-        historyTask = nil
         phase = .idle
         onTypedCancel?()
     }
@@ -196,7 +189,6 @@ final class MailReplyWorkflow: Workflow {
         if typedSession != nil, processingTask == nil {
             // Input panel still open: another workflow takes over.
             typedSession = nil
-            historyTask = nil
             onTypedInputDismiss?()
             phase = .idle
             return
@@ -220,7 +212,6 @@ final class MailReplyWorkflow: Workflow {
         captureTask?.cancel()
         captureTask = nil
         processingTask?.cancel()
-        historyTask = nil
         if typedSession != nil {
             typedSession = nil
             onTypedInputDismiss?()
@@ -285,22 +276,6 @@ final class MailReplyWorkflow: Workflow {
 
     // MARK: - Shared: Claude -> paste
 
-    /// Starts the lookup of a mail from the other party (compose: first To
-    /// recipient, reply: the selected message's sender, not Ben himself),
-    /// concurrently with dictation or typing. The work runs on the
-    /// AppleScript queue, not on the main thread.
-    private func startHistoryLookup(for content: MailCaptureContent?) {
-        historyTask = nil
-        let other: String?
-        switch content {
-        case .compose(let context)?: other = context.toRecipients.first
-        case .reply(let context)?: other = context.sender
-        case nil: other = nil
-        }
-        guard let other else { return }
-        historyTask = Task { await MailHistoryService.lookup(sender: other) }
-    }
-
     private static func typedPanelTitle(for content: MailCaptureContent) -> String {
         switch content {
         case .reply(let context):
@@ -327,30 +302,22 @@ final class MailReplyWorkflow: Workflow {
         var hints: [MailReplyHint] = []
         switch capture.content {
         case .reply(let context):
-            // Bounded by the lookup's own budget; no history on any failure.
-            let history = await historyTask?.value
-            historyTask = nil
-            if Task.isCancelled { return }
             let result = try await AnthropicService.completeReply(
                 systemPrompt: MailReplyPromptBuilder.systemPrompt(
                     customInstruction: settings.systemPrompt,
                     customTerms: customTerms
                 ),
-                userMessage: MailReplyPromptBuilder.userMessage(context: context, history: history, transcript: points)
+                userMessage: MailReplyPromptBuilder.userMessage(context: context, transcript: points)
             )
             reply = result.reply
             hints = result.hints
         case .compose(let context):
-            // Bounded by the lookup's own budget; no history on any failure.
-            let history = await historyTask?.value
-            historyTask = nil
-            if Task.isCancelled { return }
             let result = try await AnthropicService.completeCompose(
                 systemPrompt: MailReplyPromptBuilder.composeSystemPrompt(
                     customInstruction: settings.systemPrompt,
                     customTerms: customTerms
                 ),
-                userMessage: MailReplyPromptBuilder.composeUserMessage(context: context, history: history, transcript: points)
+                userMessage: MailReplyPromptBuilder.composeUserMessage(context: context, transcript: points)
             )
             reply = result.reply
             subject = result.subject

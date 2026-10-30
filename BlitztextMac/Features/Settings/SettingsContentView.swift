@@ -1036,7 +1036,7 @@ struct CustomizeSettingsView: View {
                         }
                 }
 
-                Text("Leer = eingebaute Anweisung: Du/Sie und Ton aus dem Mailverlauf, nichts dazuerfinden, Gru\u{00DF} mit \u{201E}Ben\u{201C} (Du) oder \u{201E}Ben Scheffler\u{201C} (Sie). Eine eigene Anweisung ersetzt sie komplett; die Eigennamen-Liste wird angeh\u{00E4}ngt. Sie gilt auch f\u{00FC}r neue Mails; dort bleiben Sie-Standard, Begr\u{00FC}\u{00DF}ung, Gru\u{00DF} und Ausgabeformat fest, die Anweisung sollte also nur auf den Ton wirken. Braucht den Anthropic API Key unter Zugang. Funktioniert nur im Antwort- oder Neue-Mail-Fenster von Apple Mail.")
+                Text("Leer = eingebaute Anweisung: immer Du (Sie nur, wenn du im Diktat ausdr\u{00FC}cklich siezt), Ton aus dem Mailverlauf, nichts dazuerfinden, Gru\u{00DF} mit \u{201E}Ben\u{201C} (Du) oder \u{201E}Ben Scheffler\u{201C} (Sie). Eine eigene Anweisung ersetzt sie komplett; die Eigennamen-Liste wird angeh\u{00E4}ngt. Sie gilt auch f\u{00FC}r neue Mails; dort bleiben Anrede-Regel, Begr\u{00FC}\u{00DF}ung, Gru\u{00DF} und Ausgabeformat fest, die Anweisung sollte also nur auf den Ton wirken. Braucht den Anthropic API Key unter Zugang. Funktioniert nur im Antwort- oder Neue-Mail-Fenster von Apple Mail.")
                     .font(.system(size: 10.5))
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)

@@ -85,7 +85,6 @@ targets:
       - path: Services/EmailParagraphFormatter.swift
       - path: Services/MailContextService.swift
       - path: Services/MailComposeService.swift
-      - path: Services/MailHistoryService.swift
       - path: Services/MailReplyPromptBuilder.swift
       - path: Services/MailReplySettings.swift
       - path: Services/MailReplyTypedInput.swift

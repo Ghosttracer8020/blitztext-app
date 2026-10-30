@@ -9,11 +9,6 @@ enum MailReplyPromptBuilder {
     static let pointsHeader = "=== STICHPUNKTE VON BEN ==="
     static let newMailHeader = "=== NEUE MAIL ==="
 
-    /// Header of the last mail from the other party (recipient in compose mode, sender in reply mode).
-    static func lastMailHeader(name: String) -> String {
-        "=== LETZTE MAIL VON \(name) AN BEN ==="
-    }
-
     static let defaultSystemPrompt = """
     Du schreibst im Namen von Ben die Antwort auf eine E-Mail. Du erhältst zwei klar abgegrenzte Abschnitte: die ORIGINALE MAIL (Betreff, Absender, Datum, Inhalt inklusive zitiertem Verlauf) und die STICHPUNKTE VON BEN – ein gesprochenes, automatisch transkribiertes Diktat, in dem Ben knapp sagt, was er antworten will.
 
@@ -35,11 +30,11 @@ enum MailReplyPromptBuilder {
 
     Sprache und Ton:
     - Antworte in der Sprache der letzten eingegangenen Nachricht (der neueste Teil der originalen Mail, ganz oben), nicht in der Sprache des Diktats.
-    - Anrede (Du oder Sie, Vorname oder Nachname) und Ton richten sich nach den Regeln im Abschnitt „Anrede in Antworten". Standard ist Du. Sieh dir an, wie Ben in früheren, zitierten Nachrichten selbst geschrieben hat (Begrüßung, Wortwahl), und schreib genauso.
+    - Ob Du oder Sie, entscheidet allein die Regel im Abschnitt „Anrede in Antworten": Standard ist Du, unabhängig davon, wie die Mail oder der Verlauf die Person anspricht. Wortwahl und Förmlichkeit des Tons darfst du an die Mail anpassen, die Du/Sie-Wahl nicht.
     - Klingt Ben natürlich, nicht steifer als gesprochen und ohne Floskeln wie „Ich hoffe, es geht Ihnen gut".
 
     Aufbau:
-    1. Begrüßung passend zur Anrede (z. B. „Hallo Thomas," bei Du oder „Guten Tag Frau Meier," bei Sie), danach eine Leerzeile.
+    1. Begrüßung passend zur Anrede (bei Du „Hallo Thomas,", bei Sie „Guten Tag Frau Meier,"), danach eine Leerzeile.
     2. Der Inhalt in Absätzen nach Themen, je eine Leerzeile dazwischen. Ein Absatz darf mehrere Sätze haben.
     3. Eine Leerzeile, dann der Gruß in zwei Zeilen. Bei Du: „Liebe Grüße" oder „Viele Grüße" (je nach Ton), darunter „Ben". Bei Sie: „Viele Grüße", darunter „Ben Scheffler". In anderer Sprache die dort übliche Formel, darunter derselbe Name nach derselben Regel.
 
@@ -66,13 +61,9 @@ enum MailReplyPromptBuilder {
     /// the Du default and its order of evidence cannot be dropped.
     static let replyAddressingContract = """
     Anrede in Antworten (gilt immer, auch zusätzlich zu einer eigenen Anweisung):
-    Standard ist die Du-Form. Entscheide in dieser Reihenfolge:
-    1. Bens Stichpunkte gehen vor: Sagt er „siezen", „per Sie" oder „Sie-Form", schreib per Sie. Sagt er „duzen", „per Du" oder „Du-Form", schreib per Du. Das bloße Wort „Sie" oder „du" im Satz (z. B. „Sie kommt am Dienstag") ist keine Anweisung.
-    2. Sonst der Verlauf: Wie hat Ben die Person in zitierten früheren Nachrichten angesprochen, und wie spricht die Person Ben an? Eine Nachricht, die an jemand anderen gerichtet ist (anderer Vorname in der Begrüßung, „Hallo zusammen"), sagt nichts über Ben und diese Person.
-    3. Sonst, wenn der Abschnitt „LETZTE MAIL VON … AN BEN" vorhanden ist: Hat die Absenderadresse die Domain parkourone.com, schreib per Du. Andernfalls richte dich danach, wie diese Mail Ben anspricht. Spricht sie jemand anderen an (anderer Vorname in der Begrüßung, „Hallo zusammen"), sagt sie nichts über Ben und die Person: ignoriere sie für die Anrede und nimm Du.
-    4. Sonst schreib per Du.
-    - Bei Du ist die Begrüßung der Vorname („Hallo Jörg,"). Der Gruß bleibt wie beschrieben: bei Du „Liebe Grüße" oder „Viele Grüße" und „Ben", bei Sie „Viele Grüße" und „Ben Scheffler".
-    - Die letzte Mail dient nur der Anrede und den Namen. Greif ihren Inhalt nicht auf, und leite aus ihr keine Prüfhinweise ab: Hinweise kommen ausschließlich aus dem Verlauf der ORIGINALEN MAIL.
+    Immer Du. Sie nur, wenn Bens Diktat ausdrücklich die Höflichkeitsform gegenüber dem Empfänger verwendet (Sie, Ihnen, Ihr, Ihre als Anrede, z. B. „bedank dich bei Ihnen", „können Sie …") oder Ben „siezen", „per Sie" oder „Sie-Form" sagt. „sie" im Sinn von „sie/ihnen" über Dritte (z. B. „Sie kommt am Dienstag") ist keine Anrede. Wie die Mail oder der Verlauf die Person anspricht (Du oder Sie, auch in zitierten Mails) und die Absender-Domain spielen für die Du/Sie-Wahl keine Rolle.
+    - Begrüßung bei Du: der Vorname („Hallo Jörg,"), bei mehreren Empfängern „Hallo zusammen,". Bei Sie: „Guten Tag Frau Meier," oder „Guten Tag Herr Meier,"; ist das Geschlecht aus dem Namen nicht sicher erkennbar, „Guten Tag Thomas Meier,".
+    - Gruß bei Du: „Liebe Grüße" oder „Viele Grüße" und darunter „Ben". Bei Sie: „Viele Grüße" und darunter „Ben Scheffler". Keine Signatur.
     """
 
     /// Prompt of the "Neue Mail" mode: a complete mail from Ben's points, no
@@ -103,12 +94,8 @@ enum MailReplyPromptBuilder {
 
     Sprache und Anrede:
     - Schreib auf Deutsch, außer Ben verlangt eine andere Sprache.
-    - Standard ist die Du-Form. Entscheide in dieser Reihenfolge:
-      1. Bens Stichpunkte gehen vor: Sagt er „siezen", „per Sie" oder „Sie-Form", schreib per Sie. Sagt er „duzen", „per Du" oder „Du-Form", schreib per Du. Das bloße Wort „Sie" oder „du" im Satz (z. B. „Sie kommt am Dienstag") ist keine Anweisung.
-      2. Sonst, wenn der Abschnitt „LETZTE MAIL VON … AN BEN" vorhanden ist: Hat die Absenderadresse die Domain parkourone.com, schreib per Du. Andernfalls richte dich danach, wie die Person Ben anspricht und wie Ben sie in zitierten früheren Mails angesprochen hat. Ist das nicht eindeutig, schreib per Du.
-      3. Gibt es keinen solchen Abschnitt, schreib per Du.
-    - Die letzte Mail dient nur der Anrede und den Namen. Greif ihren Inhalt nicht auf, außer Bens Stichpunkte tun es.
-    - Die Begrüßung folgt dem Namen im Abschnitt An. Bei Du der Vorname („Hallo Thomas,"). Bei Sie „Guten Tag Frau Meier," oder „Guten Tag Herr Meier," – ist das Geschlecht aus dem Namen nicht sicher erkennbar, „Guten Tag Thomas Meier,". Bei mehreren Empfängern eine gemeinsame Begrüßung („Hallo zusammen,"). Ohne Namen eine neutrale Begrüßung („Guten Tag," bzw. „Hallo,").
+    - Immer Du. Sie nur, wenn Bens Diktat ausdrücklich die Höflichkeitsform gegenüber dem Empfänger verwendet (Sie, Ihnen, Ihr, Ihre als Anrede, z. B. „bedank dich bei Ihnen", „können Sie …") oder Ben „siezen", „per Sie" oder „Sie-Form" sagt. „sie" im Sinn von „sie/ihnen" über Dritte (z. B. „Sie kommt am Dienstag") ist keine Anrede. Absender-Domain und Empfänger spielen für die Du/Sie-Wahl keine Rolle.
+    - Die Begrüßung folgt dem Namen im Abschnitt An. Bei Du der Vorname („Hallo Jörg,"). Bei Sie „Guten Tag Frau Meier," oder „Guten Tag Herr Meier," – ist das Geschlecht aus dem Namen nicht sicher erkennbar, „Guten Tag Thomas Meier,". Bei mehreren Empfängern eine gemeinsame Begrüßung („Hallo zusammen,"). Ohne Namen eine neutrale Begrüßung („Guten Tag," bzw. „Hallo,").
 
     Aufbau:
     1. Begrüßung, danach eine Leerzeile.
@@ -142,9 +129,7 @@ enum MailReplyPromptBuilder {
         return prompt
     }
 
-    /// `history` is the newest mail received from the first To recipient; the
-    /// section is left out without it.
-    static func composeUserMessage(context: MailComposeContext, history: MailHistory? = nil, transcript: String) -> String {
+    static func composeUserMessage(context: MailComposeContext, transcript: String) -> String {
         var header: [String] = []
         if !context.toRecipients.isEmpty {
             header.append("An: \(context.toRecipients.joined(separator: ", "))")
@@ -160,45 +145,16 @@ enum MailReplyPromptBuilder {
             header.append("(keine Empfänger eingetragen)")
         }
 
-        var historySection = ""
-        if let history, let name = context.toRecipients.first {
-            historySection = Self.historySection(name: name, history: history)
-        }
-
         return """
         \(newMailHeader)
         \(header.joined(separator: "\n"))
 
-        \(historySection)\(pointsHeader)
+        \(pointsHeader)
         \(transcript)
         """
     }
 
-    /// The "LETZTE MAIL VON" block, ending with a blank line.
-    static func historySection(name: String, history: MailHistory) -> String {
-        [
-            lastMailHeader(name: name),
-            "Absender: \(history.sender)",
-            "Datum: \(history.dateReceived)",
-            "",
-            "Auszug:",
-            history.excerpt,
-            "",
-            "",
-        ].joined(separator: "\n")
-    }
-
-    /// Display name of "Name <addr>"; the whole sender if there is no name.
-    static func displayName(ofSender sender: String) -> String {
-        let name = sender.firstIndex(of: "<").map { String(sender[..<$0]) } ?? sender
-        let cleaned = name.trimmingCharacters(in: CharacterSet.whitespaces.union(CharacterSet(charactersIn: "\"'")))
-        return cleaned.isEmpty ? sender : cleaned
-    }
-
-    /// `history` is the newest mail from the sender that addresses Ben; the
-    /// section sits between the original mail and the points and is left out
-    /// without it.
-    static func userMessage(context: MailContext, history: MailHistory? = nil, transcript: String) -> String {
+    static func userMessage(context: MailContext, transcript: String) -> String {
         var header = [
             "Betreff: \(context.subject)",
             "Von: \(context.sender)",
@@ -211,11 +167,6 @@ enum MailReplyPromptBuilder {
         }
         header.append("Datum: \(context.dateReceived)")
 
-        var historySection = ""
-        if let history {
-            historySection = Self.historySection(name: displayName(ofSender: context.sender), history: history)
-        }
-
         return """
         \(originalMailHeader)
         \(header.joined(separator: "\n"))
@@ -223,7 +174,7 @@ enum MailReplyPromptBuilder {
         Inhalt:
         \(context.content)
 
-        \(historySection)\(pointsHeader)
+        \(pointsHeader)
         \(transcript)
         """
     }

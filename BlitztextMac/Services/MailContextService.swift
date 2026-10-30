@@ -236,8 +236,7 @@ enum MailContextService {
         return descriptor
     }
 
-    /// Runs on the shared queue, so it runs after a history lookup that is
-    /// still in flight instead of in parallel; the caller awaits, so the main
+    /// Runs on the shared script queue; the caller awaits, so the main
     /// thread stays free meanwhile.
     private static func readSelectedMessage() async throws -> MailContext {
         let descriptor: NSAppleEventDescriptor = try await withCheckedThrowingContinuation { continuation in
