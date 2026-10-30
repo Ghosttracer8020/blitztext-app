@@ -95,6 +95,7 @@ targets:
       - path: Services/LiveTranscriptionProtocol.swift
       - path: Services/PCM16Converter.swift
       - path: Services/HintsPanelPlacement.swift
+      - path: Services/MailReplyWindowWatch.swift
       - path: Features/Pill/PillContentView.swift
     settings:
       base:

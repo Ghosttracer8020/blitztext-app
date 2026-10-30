@@ -11,6 +11,7 @@ final class MailReplyHintsPanelController {
     private static let edgeInset: CGFloat = 16
 
     private var panel: MailReplyHintsPanel?
+    private var windowWatch: MailReplyWindowWatch?
 
     var isVisible: Bool { panel?.isVisible ?? false }
 
@@ -68,6 +69,12 @@ final class MailReplyHintsPanelController {
         }
 
         self.panel = panel
+        // Sent or discarded reply window: nothing left to review, so close.
+        if let window {
+            let watch = MailReplyWindowWatch(ref: window, onGone: { [weak self] in self?.dismiss() })
+            windowWatch = watch
+            watch.start()
+        }
         // Never makeKey / activate: Mail must stay the active app.
         panel.orderFrontRegardless()
     }
@@ -84,6 +91,8 @@ final class MailReplyHintsPanelController {
     }
 
     func dismiss() {
+        windowWatch?.stop()
+        windowWatch = nil
         guard let panel else { return }
         self.panel = nil
         panel.close()
