@@ -88,7 +88,7 @@ enum LLMService {
     ) async throws -> String {
         try await complete(
             text: text,
-            systemPrompt: systemPrompt,
+            systemPrompt: AddressingRule.appended(to: systemPrompt),
             model: model,
             temperature: 0.4
         )
@@ -185,7 +185,8 @@ enum LLMService {
             densityInstruction = "Setze grosszuegig Emojis ein, gerne mehrere pro Satz."
         }
 
-        return "Du erhaeltst ein gesprochenes Transkript. Gib den Text moeglichst originalgetreu zurueck, aber fuege passende Emojis ein. \(densityInstruction) Korrigiere offensichtliche Sprach- und Grammatikfehler. Behalte den Stil und die Bedeutung bei. Gib NUR den Text mit Emojis zurueck, keine Erklaerungen."
+        let prompt = "Du erhaeltst ein gesprochenes Transkript. Gib den Text moeglichst originalgetreu zurueck, aber fuege passende Emojis ein. \(densityInstruction) Korrigiere offensichtliche Sprach- und Grammatikfehler. Behalte den Stil und die Bedeutung bei. Gib NUR den Text mit Emojis zurueck, keine Erklaerungen."
+        return AddressingRule.appended(to: prompt)
     }
 
     private static func buildSystemPrompt(settings: TextImprovementSettings) -> String {
@@ -194,7 +195,7 @@ enum LLMService {
             if !settings.customTerms.isEmpty {
                 prompt += "\n\nWichtig: Diese Eigennamen und Fachbegriffe muessen exakt so geschrieben werden: \(settings.customTerms.joined(separator: ", "))"
             }
-            return prompt
+            return AddressingRule.appended(to: prompt)
         }
 
         var prompt = """
@@ -207,7 +208,7 @@ enum LLMService {
 
         switch settings.tone {
         case .formal:
-            prompt += "\n- Verwende einen formellen, professionellen Ton"
+            prompt += "\n- Verwende einen formellen, professionellen Ton (das bedeutet nicht automatisch Siezen)"
         case .neutral:
             prompt += "\n- Verwende einen neutralen, klaren Ton"
         case .casual:
@@ -222,6 +223,6 @@ enum LLMService {
             prompt += "\n\nKontext: \(settings.context)"
         }
 
-        return prompt
+        return AddressingRule.appended(to: prompt)
     }
 }

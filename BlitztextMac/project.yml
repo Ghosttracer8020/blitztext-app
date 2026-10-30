@@ -81,6 +81,7 @@ targets:
       - path: Services/TranscriptionQualityService.swift
       - path: Services/PasteContextService.swift
       - path: Services/PromptTextPromptBuilder.swift
+      - path: Services/AddressingRule.swift
       - path: Services/EmailParagraphFormatter.swift
       - path: Services/MailContextService.swift
       - path: Services/MailComposeService.swift

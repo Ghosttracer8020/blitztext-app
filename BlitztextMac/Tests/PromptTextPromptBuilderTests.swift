@@ -64,7 +64,34 @@ final class PromptTextPromptBuilderTests: XCTestCase {
             outputLanguage: .spoken,
             customTerms: []
         )
-        XCTAssertEqual(withEmptyTerms, PromptTextPromptBuilder.defaultSystemPrompt)
+        XCTAssertEqual(withEmptyTerms, AddressingRule.appended(to: PromptTextPromptBuilder.defaultSystemPrompt))
         XCTAssertFalse(withEmptyTerms.contains("Wichtig: Diese Eigennamen"))
+    }
+}
+
+final class AddressingRuleTests: XCTestCase {
+    func testRuleForbidsSwitchingToSieAndKeepsDuForAI() {
+        XCTAssertTrue(AddressingRule.text.contains("nie von „du\"/„ihr\" zu „Sie\""))
+        XCTAssertTrue(AddressingRule.text.contains("Claude wird immer geduzt"))
+        XCTAssertTrue(AddressingRule.text.contains("bedeutet nicht „Sie\""))
+    }
+
+    func testAppendedKeepsPromptAndAddsRuleAtEnd() {
+        let result = AddressingRule.appended(to: "Eigener Prompt.")
+        XCTAssertTrue(result.hasPrefix("Eigener Prompt."))
+        XCTAssertTrue(result.hasSuffix(AddressingRule.text))
+    }
+
+    func testPromptTextAppendsRuleWithAndWithoutCustomInstruction() {
+        for instruction in ["", "Formuliere Prompts immer fuer Claude Code."] {
+            for language in [PromptOutputLanguage.spoken, .english] {
+                let prompt = PromptTextPromptBuilder.systemPrompt(
+                    customInstruction: instruction,
+                    outputLanguage: language,
+                    customTerms: ["Blitztext"]
+                )
+                XCTAssertTrue(prompt.hasSuffix(AddressingRule.text), "instruction=\(instruction) language=\(language)")
+            }
+        }
     }
 }

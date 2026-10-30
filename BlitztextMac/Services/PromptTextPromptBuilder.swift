@@ -51,6 +51,6 @@ enum PromptTextPromptBuilder {
             prompt += "\n\nWichtig: Diese Eigennamen und Fachbegriffe muessen exakt so geschrieben werden: \(customTerms.joined(separator: ", "))"
         }
 
-        return prompt
+        return AddressingRule.appended(to: prompt)
     }
 }
