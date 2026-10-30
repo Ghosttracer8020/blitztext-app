@@ -41,6 +41,7 @@ enum MailContextError: LocalizedError, Equatable {
     case notMail
     case automationDenied
     case noSelection
+    case noQuotedOriginal
     case subjectMismatch(window: String, selected: String)
     case scriptFailed(Int)
     case mailNotResponding
@@ -54,6 +55,8 @@ enum MailContextError: LocalizedError, Equatable {
             return "Blitztext darf Mail nicht steuern. Bitte unter Systemeinstellungen \u{2192} Datenschutz & Sicherheit \u{2192} Automation freigeben."
         case .noSelection:
             return "In Mail ist keine Nachricht markiert. Markiere die Mail, auf die du antwortest, im Postfach."
+        case .noQuotedOriginal:
+            return "In Mail ist keine passende Nachricht markiert, und im Antwortfenster konnte ich das zitierte Original nicht lesen. Markiere die Mail, auf die du antwortest, im Postfach."
         case .subjectMismatch(let window, let selected):
             return "Die markierte Mail (\u{201E}\(selected)\u{201C}) passt nicht zum Antwortfenster (\u{201E}\(window)\u{201C}). Markiere im Postfach die Mail, auf die du antwortest."
         case .scriptFailed(let code):
@@ -83,6 +86,11 @@ enum MailContextService {
         collapseWhitespace(title).range(of: replyPrefixPattern, options: [.regularExpression, .caseInsensitive]) != nil
     }
 
+    /// True only for real reply prefixes ("Re:", "AW:"), not for forwards.
+    static func hasRealReplyPrefix(_ title: String) -> Bool {
+        collapseWhitespace(title).range(of: #"^(re|aw)\s*:"#, options: [.regularExpression, .caseInsensitive]) != nil
+    }
+
     /// Strips repeated reply/forward prefixes ("Re:", "AW:", "Fwd:", "Fw:",
     /// "WG:", any case), collapses whitespace, trims.
     static func normalizeSubject(_ subject: String) -> String {
@@ -105,6 +113,83 @@ enum MailContextService {
     static func truncate(_ content: String, limit: Int = maxContentCharacters) -> String {
         guard limit >= 0, content.count > limit else { return content }
         return String(content.prefix(limit))
+    }
+
+    /// Sender and date from the attribution line Mail puts above the quoted
+    /// original ("Am 19.10.2026 um 19:14 schrieb Name <addr>:").
+    struct Attribution: Equatable {
+        let date: String
+        let sender: String
+    }
+
+    private static let attributionPatterns = [
+        #"^Am\s+(.+?)\s+schrieb\s+(.+?)\s*:$"#,
+        // English: anchor on the time ("..., at 7:14 PM, Name wrote:") so a comma
+        // inside the sender's name ("Doe, Jane") stays part of the sender.
+        #"^On\s+(.+?\bat\s+\d{1,2}[:.]\d{2}(?::\d{2})?(?:\s*[AP]M)?),\s+(.+?)\s+wrote\s*:$"#,
+        // English without time: a date like "Oct 19, 2026" or a comma-free one.
+        #"^On\s+((?:\w+,\s+)?\w+\.?\s+\d{1,2},\s+\d{4}|[^,]+?),\s+(.+?)\s+wrote\s*:$"#,
+    ]
+
+    /// Parses one line as an attribution ("Am ... schrieb X:" / "On ..., X wrote:").
+    /// Returns nil for any other line.
+    static func parseAttribution(_ line: String) -> Attribution? {
+        let text = collapseWhitespace(line)
+        for pattern in attributionPatterns {
+            guard let regex = try? NSRegularExpression(pattern: pattern, options: [.caseInsensitive]),
+                  let match = regex.firstMatch(in: text, range: NSRange(text.startIndex..., in: text)),
+                  match.numberOfRanges == 3,
+                  let dateRange = Range(match.range(at: 1), in: text),
+                  let senderRange = Range(match.range(at: 2), in: text)
+            else { continue }
+            let sender = String(text[senderRange])
+            guard !sender.isEmpty else { continue }
+            return Attribution(date: String(text[dateRange]), sender: sender)
+        }
+        return nil
+    }
+
+    /// Builds the quoted original from the text lines of a reply body. Lines
+    /// before the attribution line are the user's own part (empty, dictated,
+    /// signature) and are dropped. The attribution may be split over several
+    /// nodes (address as link, wrapped line), so up to `maxAttributionSpan`
+    /// consecutive lines are joined for matching. Without an attribution line
+    /// the original cannot be told from the user's own text: nil, no guessing.
+    static let maxAttributionSpan = 4
+
+    static func quotedText(fromBodyLines lines: [String]) -> (text: String, attribution: Attribution)? {
+        let cleaned = lines
+            .map { $0.replacingOccurrences(of: "\u{FFFC}", with: "").trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+        for index in cleaned.indices {
+            for span in 1...maxAttributionSpan where index + span <= cleaned.count {
+                let joined = cleaned[index..<(index + span)].joined(separator: " ")
+                guard let attribution = parseAttribution(joined) else { continue }
+                let rest = cleaned[(index + span)...]
+                // Only the attribution itself: no original text behind it.
+                guard !rest.isEmpty else { return nil }
+                return ((joined + "\n" + rest.joined(separator: "\n")), attribution)
+            }
+        }
+        return nil
+    }
+
+    /// Context built from the reply window alone, for when the selected
+    /// message is gone or differs (mail opened later via link).
+    static func contextFromReplyWindow(
+        title: String,
+        body: (text: String, attribution: Attribution),
+        compose: MailComposeContext?
+    ) -> MailContext {
+        let to = compose?.toRecipients ?? []
+        return MailContext(
+            subject: normalizeSubject(title),
+            sender: body.attribution.sender,
+            dateReceived: body.attribution.date,
+            content: truncate(body.text),
+            toRecipients: to,
+            ccRecipients: compose?.ccRecipients ?? []
+        )
     }
 
     private static func collapseWhitespace(_ text: String) -> String {
@@ -132,22 +217,49 @@ enum MailContextService {
             return MailCapture(content: .compose(composeContext), pid: pid, window: window)
         }
 
-        let message = try await readSelectedMessage()
-
-        if let windowTitle, !windowTitle.isEmpty {
-            guard subjectsMatch(windowTitle: windowTitle, selectedSubject: message.subject) else {
-                throw MailContextError.subjectMismatch(
-                    window: windowTitle,
-                    selected: message.subject
-                )
+        let selectionError: Error
+        do {
+            let message = try await readSelectedMessage()
+            if let windowTitle, !windowTitle.isEmpty,
+               !subjectsMatch(windowTitle: windowTitle, selectedSubject: message.subject) {
+                selectionError = MailContextError.subjectMismatch(window: windowTitle, selected: message.subject)
+            } else {
+                if windowTitle?.isEmpty ?? true {
+                    mailContextLogger.notice("Reply window title unavailable; using selection without subject check")
+                }
+                var result = message
+                result.content = truncate(message.content)
+                mailContextLogger.notice("Mail context from selection")
+                return MailCapture(content: .reply(result), pid: pid, window: window)
             }
-        } else {
-            mailContextLogger.notice("Reply window title unavailable; using selection without subject check")
+        } catch is CancellationError {
+            throw CancellationError()
+        } catch {
+            // Any other selection failure (nothing selected, Mail timed out,
+            // automation refused): the fallback below needs only Accessibility.
+            selectionError = error
         }
 
-        var result = message
-        result.content = truncate(message.content)
-        return MailCapture(content: .reply(result), pid: pid, window: window)
+        // Nothing usable selected (e.g. the mail was opened later from a link):
+        // the quoted original in the reply window is the context instead.
+        // Real replies only; a forward window must not become reply context.
+        guard let window, let windowTitle, hasRealReplyPrefix(windowTitle) else {
+            mailContextLogger.notice("No mail context: selection unusable and window is not a reply")
+            throw selectionError
+        }
+        if let body = await MailComposeService.readReplyBodyLines(of: window.element),
+           let quoted = quotedText(fromBodyLines: body) {
+            mailContextLogger.notice("Mail context from reply window (selection fallback)")
+            let context = contextFromReplyWindow(title: windowTitle, body: quoted, compose: composeContext)
+            return MailCapture(content: .reply(context), pid: pid, window: window)
+        }
+        mailContextLogger.notice("No mail context: selection unusable and no quoted original with attribution in the reply window")
+        // A mismatch or Mail error is more telling than the generic hint; only
+        // the plain "nothing selected" case gets the quote-specific message.
+        if let known = selectionError as? MailContextError, known == .noSelection {
+            throw MailContextError.noQuotedOriginal
+        }
+        throw selectionError
     }
 
     @MainActor

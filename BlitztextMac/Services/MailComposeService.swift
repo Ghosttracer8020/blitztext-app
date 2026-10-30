@@ -291,6 +291,39 @@ enum MailComposeService {
         return search(window, depth: 0) ?? firstWebArea
     }
 
+    // MARK: - Reply body
+
+    /// Text lines of the reply window's message body (the quoted original),
+    /// read from the static text nodes of the body web area; Mail exposes no
+    /// AXValue there. Runs off the main thread, bounded by node count and
+    /// time. Nil if the body is not found or holds no text.
+    static func readReplyBodyLines(of window: AXUIElement) async -> [String]? {
+        await offMain {
+            guard let body = findBody(in: window) else {
+                mailComposeLogger.notice("Reply body not found in the window")
+                return nil
+            }
+            let budget = Budget(maxNodes: 4000, seconds: 3)
+            var lines: [String] = []
+            var cutOff = false
+
+            func collect(_ element: AXUIElement, depth: Int) {
+                guard budget.spend() else { cutOff = true; return }
+                if string(element, kAXRoleAttribute) == kAXStaticTextRole as String,
+                   let value = string(element, kAXValueAttribute) {
+                    lines.append(value)
+                }
+                guard depth < 40 else { return }
+                for child in children(of: element) { collect(child, depth: depth + 1) }
+            }
+            collect(body, depth: 0)
+            if cutOff {
+                mailComposeLogger.notice("Reply body read cut off by node/time budget after \(lines.count) text lines")
+            }
+            return lines.isEmpty ? nil : lines
+        }
+    }
+
     // MARK: - AX access
 
     private static func children(of element: AXUIElement) -> [AXUIElement] {
