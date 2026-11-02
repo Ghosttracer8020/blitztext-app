@@ -30,7 +30,8 @@ _PROJECT_YML="$_RELEASE_ROOT/BlitztextMac/project.yml"
 # Hub base URL: single source is ULTRADIC_HUB_URL in project.yml (also feeds Info.plist SUFeedURL).
 HUB_URL="${ULTRADIC_HUB_URL:-$(sed -n 's/^    ULTRADIC_HUB_URL: "\(.*\)"$/\1/p' "$_PROJECT_YML" 2>/dev/null | head -1)}"
 UPLOAD_TARGET="${ULTRADIC_UPLOAD_TARGET:-claudedude@ugreen-nas.tail076274.ts.net:/volume1/docker/ultradic-hub/data/updates/}"
-IDENTITY_NAME="UltraDic Signing"
+# Existing stable self-signed identity on Ben's Mac; keeps macOS privacy grants across updates.
+IDENTITY_NAME="${ULTRADIC_RELEASE_IDENTITY:-Blitztext Dev}"
 SPARKLE_ACCOUNT="ultradic"
 
 # --- Funktionen -------------------------------------------------------------------------------
@@ -222,7 +223,7 @@ if security find-identity -v -p codesigning 2>/dev/null | grep -q "\"$IDENTITY_N
 else
   SIGN_IDENTITY="-"
   cat >&2 <<'WARN'
-⚠⚠⚠ WARNUNG: Identität „UltraDic Signing“ nicht gefunden – signiere AD-HOC.
+⚠⚠⚠ WARNUNG: Signatur-Identität nicht gefunden – signiere AD-HOC.
     Updates funktionieren (EdDSA trägt die Sicherheit), aber macOS behandelt jede Version
     als neue App: Mikrofon- und Bedienungshilfen-Freigaben werden nach dem Update neu abgefragt.
     Einmalig beheben: scripts/setup-signing.sh

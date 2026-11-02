@@ -11,7 +11,7 @@ settings:
     SWIFT_VERSION: "5.10"
     MACOSX_DEPLOYMENT_TARGET: "14.0"
     MARKETING_VERSION: "1.5"
-    CURRENT_PROJECT_VERSION: "15"
+    CURRENT_PROJECT_VERSION: "16"
     # Update hub base URL: the ONE place for app (Info.plist SUFeedURL) and
     # scripts/release.sh, which reads this line. Port 8452 is a placeholder
     # until the hub container is deployed.
