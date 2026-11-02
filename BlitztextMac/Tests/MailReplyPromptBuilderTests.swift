@@ -77,7 +77,9 @@ final class MailReplyPromptBuilderTests: XCTestCase {
         let prompt = MailReplyPromptBuilder.defaultSystemPrompt
         XCTAssertTrue(prompt.contains("Erfinde nichts dazu"))
         XCTAssertTrue(prompt.contains("kein ausformuliertes Diktat"))
-        XCTAssertTrue(prompt.contains("Ordne jeden Stichpunkt der Stelle in ihrer Mail zu"))
+        XCTAssertTrue(prompt.contains("Kurz und auf den Punkt, aber freundlich"))
+        XCTAssertTrue(prompt.contains("Jeder Gedanke kommt genau einmal vor"))
+        XCTAssertFalse(prompt.contains("Ordne jeden Stichpunkt der Stelle in ihrer Mail zu"))
         XCTAssertTrue(prompt.contains("Standard ist Du"))
         XCTAssertTrue(prompt.contains("Sprache der letzten eingegangenen Nachricht"))
         XCTAssertTrue(prompt.contains("Antworte auf die Mail"))
