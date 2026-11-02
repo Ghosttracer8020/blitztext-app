@@ -39,11 +39,11 @@ enum BlitztextInstallLocationService {
             case .destinationUnavailable:
                 return "Der Zielordner /Applications ist nicht verfügbar."
             case .destinationExists:
-                return "Am Zielort liegt bereits eine Blitztext-Installation."
+                return "Am Zielort liegt bereits eine UltraDic-Installation."
             case .destinationNotWritable:
                 return "Der Zielordner /Applications ist auf diesem Mac nicht beschreibbar."
             case .copyFailed:
-                return "Blitztext konnte nicht nach /Applications kopiert werden."
+                return "UltraDic konnte nicht nach /Applications kopiert werden."
             }
         }
     }
@@ -100,7 +100,10 @@ enum BlitztextInstallLocationService {
         let candidates = [
             bundleURL,
             systemApplicationsDirectoryURL.appendingPathComponent(bundleURL.lastPathComponent),
-            userApplicationsDirectoryURL.appendingPathComponent(bundleURL.lastPathComponent)
+            userApplicationsDirectoryURL.appendingPathComponent(bundleURL.lastPathComponent),
+            // Pre-rename copies share the bundle identifier and must count as duplicates.
+            systemApplicationsDirectoryURL.appendingPathComponent("Blitztext.app"),
+            userApplicationsDirectoryURL.appendingPathComponent("Blitztext.app")
         ]
 
         var seen = Set<String>()

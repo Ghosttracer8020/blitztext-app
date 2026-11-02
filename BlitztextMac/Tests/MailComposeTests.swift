@@ -52,6 +52,7 @@ final class MailComposeTests: XCTestCase {
 
     // MARK: - Prompt
 
+    private let sender = MailSender(firstName: "Anna", fullName: "Anna Muster")
     private let context = MailComposeContext(
         toRecipients: ["Thomas Meier"],
         ccRecipients: ["Anna Muster"],
@@ -59,47 +60,47 @@ final class MailComposeTests: XCTestCase {
     )
 
     func testComposeUserMessageHasBothSections() {
-        let message = MailReplyPromptBuilder.composeUserMessage(context: context, transcript: "Termin verschieben")
+        let message = MailReplyPromptBuilder.composeUserMessage(context: context, transcript: "Termin verschieben", sender: sender)
         XCTAssertTrue(message.hasPrefix("=== NEUE MAIL ===\nAn: Thomas Meier\nCc: Anna Muster\nBetreff: Angebot"))
-        XCTAssertTrue(message.hasSuffix("=== STICHPUNKTE VON BEN ===\nTermin verschieben"))
+        XCTAssertTrue(message.hasSuffix("=== STICHPUNKTE VON ANNA ===\nTermin verschieben"))
         XCTAssertFalse(message.contains("ORIGINALE MAIL"))
     }
 
     func testComposeUserMessageOmitsEmptyFields() {
         let bare = MailComposeContext(toRecipients: ["Thomas Meier"])
-        let message = MailReplyPromptBuilder.composeUserMessage(context: bare, transcript: "x")
+        let message = MailReplyPromptBuilder.composeUserMessage(context: bare, transcript: "x", sender: sender)
         XCTAssertTrue(message.contains("An: Thomas Meier"))
         XCTAssertFalse(message.contains("Cc:"))
         XCTAssertFalse(message.contains("Betreff:"))
 
-        let none = MailReplyPromptBuilder.composeUserMessage(context: MailComposeContext(), transcript: "x")
+        let none = MailReplyPromptBuilder.composeUserMessage(context: MailComposeContext(), transcript: "x", sender: sender)
         XCTAssertFalse(none.contains("An:"))
         XCTAssertTrue(none.contains("keine Empfänger eingetragen"))
     }
 
     func testComposeContractCarriesGreetingAddressingAndClosingRules() {
-        let prompt = MailReplyPromptBuilder.composeContract
+        let prompt = MailReplyPromptBuilder.composeContract(for: sender)
         XCTAssertTrue(prompt.contains("Immer Du."))
                 XCTAssertTrue(prompt.contains("Guten Tag Frau Meier,"))
         XCTAssertTrue(prompt.contains("Vorname"))
         XCTAssertTrue(prompt.contains("neutrale Begrüßung"))
-        XCTAssertTrue(prompt.contains("Bei Du: „Viele Grüße\", darunter „Ben\". „Liebe Grüße\" nur, wenn Ben es im Diktat ausdrücklich sagt."))
-        XCTAssertTrue(prompt.contains("darunter „Ben\""))
-        XCTAssertTrue(prompt.contains("darunter „Ben Scheffler\""))
+        XCTAssertTrue(prompt.contains("Bei Du: „Viele Grüße\", darunter „Anna\". „Liebe Grüße\" nur, wenn Anna es im Diktat ausdrücklich sagt."))
+        XCTAssertTrue(prompt.contains("darunter „Anna\""))
+        XCTAssertTrue(prompt.contains("darunter „Anna Muster\""))
         XCTAssertTrue(prompt.contains("Nach dem Namen endet der Text"))
         XCTAssertTrue(prompt.contains("keine originale Mail"))
-        XCTAssertTrue(MailReplyPromptBuilder.defaultComposeSystemPrompt.contains("Erfinde nichts dazu"))
+        XCTAssertTrue(MailReplyPromptBuilder.defaultComposeSystemPrompt(for: sender).contains("Erfinde nichts dazu"))
     }
 
     func testCustomInstructionCannotDropComposeRules() {
-        let prompt = MailReplyPromptBuilder.composeSystemPrompt(customInstruction: "Schreib kurz.", customTerms: [])
+        let prompt = MailReplyPromptBuilder.composeSystemPrompt(customInstruction: "Schreib kurz.", customTerms: [], sender: sender)
         XCTAssertTrue(prompt.contains("Immer Du."))
-        XCTAssertTrue(prompt.contains("darunter „Ben Scheffler\""))
+        XCTAssertTrue(prompt.contains("darunter „Anna Muster\""))
     }
 
     func testAddressingRuleIsDuByDefaultWithExplicitSieTriggers() {
-        for prompt in [MailReplyPromptBuilder.composeContract,
-                       MailReplyPromptBuilder.composeSystemPrompt(customInstruction: "Schreib kurz.", customTerms: [])] {
+        for prompt in [MailReplyPromptBuilder.composeContract(for: sender),
+                       MailReplyPromptBuilder.composeSystemPrompt(customInstruction: "Schreib kurz.", customTerms: [], sender: sender)] {
             XCTAssertTrue(prompt.contains("Immer Du. Sie nur, wenn"))
             XCTAssertTrue(prompt.contains("„siezen\""))
             XCTAssertTrue(prompt.contains("„per Sie\""))
@@ -114,7 +115,7 @@ final class MailComposeTests: XCTestCase {
     }
 
     func testComposeUserMessageHasNoHistorySection() {
-        let message = MailReplyPromptBuilder.composeUserMessage(context: context, transcript: "Termin")
+        let message = MailReplyPromptBuilder.composeUserMessage(context: context, transcript: "Termin", sender: sender)
         XCTAssertFalse(message.contains("LETZTE MAIL"))
         XCTAssertFalse(message.contains("Auszug:"))
     }
@@ -165,14 +166,14 @@ final class MailComposeTests: XCTestCase {
 
     func testComposeContractIsAppendedAlsoBehindCustomInstruction() {
         for instruction in ["", "Schreib kurz."] {
-            let prompt = MailReplyPromptBuilder.composeSystemPrompt(customInstruction: instruction, customTerms: ["ParkourONE"])
-            XCTAssertTrue(prompt.contains(MailReplyPromptBuilder.composeContract))
+            let prompt = MailReplyPromptBuilder.composeSystemPrompt(customInstruction: instruction, customTerms: ["ParkourONE"], sender: sender)
+            XCTAssertTrue(prompt.contains(MailReplyPromptBuilder.composeContract(for: sender)))
             XCTAssertTrue(prompt.contains("ParkourONE"))
-            XCTAssertFalse(prompt.contains(MailReplyPromptBuilder.hintContract))
+            XCTAssertFalse(prompt.contains(MailReplyPromptBuilder.hintContract(for: sender)))
         }
-        XCTAssertTrue(MailReplyPromptBuilder.composeSystemPrompt(customInstruction: "", customTerms: [])
-            .hasPrefix(MailReplyPromptBuilder.defaultComposeSystemPrompt))
-        XCTAssertTrue(MailReplyPromptBuilder.composeSystemPrompt(customInstruction: "Schreib kurz.", customTerms: [])
+        XCTAssertTrue(MailReplyPromptBuilder.composeSystemPrompt(customInstruction: "", customTerms: [], sender: sender)
+            .hasPrefix(MailReplyPromptBuilder.defaultComposeSystemPrompt(for: sender)))
+        XCTAssertTrue(MailReplyPromptBuilder.composeSystemPrompt(customInstruction: "Schreib kurz.", customTerms: [], sender: sender)
             .hasPrefix("Schreib kurz."))
     }
 

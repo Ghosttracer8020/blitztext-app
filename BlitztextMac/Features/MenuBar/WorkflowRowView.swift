@@ -76,7 +76,7 @@ struct HotkeyBadge: View {
 
     var body: some View {
         HStack(spacing: 3) {
-            // Alternative shortcuts (Blitztext Mail: dictate / type) join with " / ",
+            // Alternative shortcuts (UltraDic Mail: dictate / type) join with " / ",
             // built-in labels join their keys with " + ", recorded shortcuts with " "
             let groups = label.components(separatedBy: " / ")
             ForEach(Array(groups.enumerated()), id: \.offset) { groupIndex, group in

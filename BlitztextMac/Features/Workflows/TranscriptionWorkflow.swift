@@ -3,6 +3,7 @@ import AppKit
 import Observation
 import OSLog
 
+// Legacy subsystem id: UltraDic keeps the original bundle identifier.
 private let transcriptionLogger = Logger(subsystem: "app.blitztext.mac", category: "Transcription")
 
 private func elapsedMilliseconds(since start: Date, until end: Date = Date()) -> Int {

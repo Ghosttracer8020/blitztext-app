@@ -1,6 +1,7 @@
 import Foundation
 import OSLog
 
+// Legacy subsystem id: UltraDic keeps the original bundle identifier.
 private let transcriptionServiceLogger = Logger(subsystem: "app.blitztext.mac", category: "TranscriptionPath")
 
 enum TranscriptionError: LocalizedError {

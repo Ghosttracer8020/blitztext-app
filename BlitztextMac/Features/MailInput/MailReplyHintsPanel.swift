@@ -1,7 +1,7 @@
 import AppKit
 import SwiftUI
 
-/// Floating review hints ("Prüfen vor dem Senden") shown after a Blitztext
+/// Floating review hints ("Prüfen vor dem Senden") shown after a UltraDic
 /// Mail reply was pasted. Non-activating: Mail keeps focus and the cursor
 /// stays in the reply. Stays until closed or until the next run starts.
 @MainActor

@@ -15,6 +15,8 @@ enum KeychainKey: String, CaseIterable, Codable {
 
 /// Stores preview credentials in the user's macOS Keychain.
 enum KeychainService {
+    // Legacy service name, kept on purpose: it is the lookup key of the API
+    // keys already stored in users' keychains (the app is branded UltraDic).
     private static let service = "app.blitztext.preview.credentials"
 
     static func save(key: KeychainKey, value: String) throws {

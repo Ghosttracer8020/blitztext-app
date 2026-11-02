@@ -45,6 +45,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
 
         NSApp.setActivationPolicy(.accessory)
 
+        UpdateService.shared.start()
+
         // Hotkey events
         appState.hotkeyService.onHotkeyEvent = { [weak self] event in
             self?.handleHotkeyEvent(event)
@@ -126,8 +128,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
 
         NSApp.activate(ignoringOtherApps: true)
         let alert = NSAlert()
-        alert.messageText = "Blitztext läuft bereits"
-        alert.informativeText = "Eine andere Blitztext-Instanz ist schon aktiv. Diese Kopie wird beendet, damit Texte nicht doppelt eingefügt werden."
+        alert.messageText = "UltraDic läuft bereits"
+        alert.informativeText = "Eine andere UltraDic-Instanz ist schon aktiv. Diese Kopie wird beendet, damit Texte nicht doppelt eingefügt werden."
         alert.alertStyle = .informational
         alert.addButton(withTitle: "OK")
         alert.runModal()

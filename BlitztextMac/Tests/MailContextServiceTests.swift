@@ -82,7 +82,7 @@ final class MailContextServiceTests: XCTestCase {
     // MARK: - Errors
 
     func testNotMailErrorMessage() {
-        XCTAssertEqual(MailContextError.notMail.errorDescription, "Blitztext Mail funktioniert nur in Apple Mail.")
+        XCTAssertEqual(MailContextError.notMail.errorDescription, "UltraDic Mail funktioniert nur in Apple Mail.")
     }
 
     func testMismatchErrorNamesBothSubjects() {

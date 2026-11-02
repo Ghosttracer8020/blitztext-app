@@ -45,7 +45,7 @@ final class LiveTranscriptionTests: XCTestCase {
     }
 
     func testSessionUpdateWithOptionalFields() throws {
-        let request = LiveTranscriptionRequest.make(customTerms: ["Blitztext", "ParkourONE"], language: "de")
+        let request = LiveTranscriptionRequest.make(customTerms: ["UltraDic", "ParkourONE"], language: "de")
         let event = object(LiveEvents.sessionUpdate(request, includeOptionalFields: true))
         XCTAssertEqual(event["type"] as? String, "session.update")
         let session = try XCTUnwrap(event["session"] as? [String: Any])
@@ -60,8 +60,8 @@ final class LiveTranscriptionTests: XCTestCase {
         XCTAssertEqual(transcription["model"] as? String, "gpt-live-transcribe")
         XCTAssertEqual(transcription["languages"] as? [String], ["de"])
         XCTAssertNil(transcription["language"])
-        XCTAssertEqual(transcription["keywords"] as? [String], ["Blitztext", "ParkourONE"])
-        XCTAssertEqual(transcription["prompt"] as? String, "Eigennamen und Begriffe: Blitztext, ParkourONE")
+        XCTAssertEqual(transcription["keywords"] as? [String], ["UltraDic", "ParkourONE"])
+        XCTAssertEqual(transcription["prompt"] as? String, "Eigennamen und Begriffe: UltraDic, ParkourONE")
         XCTAssertEqual(transcription["delay"] as? String, "low")
     }
 

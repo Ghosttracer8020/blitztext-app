@@ -52,9 +52,9 @@ final class PromptTextPromptBuilderTests: XCTestCase {
         let prompt = PromptTextPromptBuilder.systemPrompt(
             customInstruction: "",
             outputLanguage: .spoken,
-            customTerms: ["ParkourONE", "Blitztext"]
+            customTerms: ["ParkourONE", "UltraDic"]
         )
-        XCTAssertTrue(prompt.contains("ParkourONE, Blitztext"))
+        XCTAssertTrue(prompt.contains("ParkourONE, UltraDic"))
         XCTAssertTrue(prompt.contains("Wichtig: Diese Eigennamen und Fachbegriffe"))
     }
 
@@ -88,7 +88,7 @@ final class AddressingRuleTests: XCTestCase {
                 let prompt = PromptTextPromptBuilder.systemPrompt(
                     customInstruction: instruction,
                     outputLanguage: language,
-                    customTerms: ["Blitztext"]
+                    customTerms: ["UltraDic"]
                 )
                 XCTAssertTrue(prompt.hasSuffix(AddressingRule.text), "instruction=\(instruction) language=\(language)")
             }

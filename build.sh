@@ -1,7 +1,7 @@
 #!/bin/bash
 set -euo pipefail
 
-# Blitztext macOS App - Build & Run
+# UltraDic macOS App (fork of Blitztext) - Build & Run
 # Voraussetzungen: Full Xcode with Command Line Tools, xcodegen
 
 RUN_AFTER=false
@@ -141,7 +141,7 @@ if [ "$RUN_TESTS_ONLY" = true ]; then
 fi
 
 # Bauen
-echo "🔨 Baue Blitztext ..."
+echo "🔨 Baue UltraDic ..."
 xcodebuild \
     -project BlitztextMac.xcodeproj \
     -scheme BlitztextMac \
@@ -150,10 +150,11 @@ xcodebuild \
     -derivedDataPath "$DERIVED_DATA_PATH" \
     ONLY_ACTIVE_ARCH=NO \
     ARCHS="$UNIVERSAL_ARCHS" \
+    ${SPARKLE_PUBLIC_KEY:+SPARKLE_PUBLIC_KEY="$SPARKLE_PUBLIC_KEY"} \
     clean build
 
 # App finden
-APP_PATH="$DERIVED_DATA_PATH/Build/Products/$BUILD_CONFIGURATION/Blitztext.app"
+APP_PATH="$DERIVED_DATA_PATH/Build/Products/$BUILD_CONFIGURATION/UltraDic.app"
 
 if [ ! -d "$APP_PATH" ]; then
     echo "❌ Build fehlgeschlagen – keine App gefunden."
@@ -170,13 +171,22 @@ cp -f "$PROJECT_DIR/Resources/AppIcon.icns" "$RESOURCES_DIR/" 2>/dev/null || tru
 cp -f "$PROJECT_DIR/Resources/menubar_icon.png" "$RESOURCES_DIR/" 2>/dev/null || true
 cp -f "$PROJECT_DIR/Resources/menubar_icon@2x.png" "$RESOURCES_DIR/" 2>/dev/null || true
 
-# Prefer a stable local signing identity over ad-hoc: ad-hoc signatures
-# change on every build, which invalidates TCC grants (Accessibility,
-# Microphone) each time. Create one e.g. as self-signed cert "Blitztext Dev".
-CODESIGN_IDENTITY="${BLITZTEXT_CODESIGN_IDENTITY:--}"
-if [ "$CODESIGN_IDENTITY" = "-" ] \
-    && security find-identity -v -p codesigning 2>/dev/null | grep -q "Blitztext Dev"; then
-    CODESIGN_IDENTITY="Blitztext Dev"
+# Signing identity, first match wins:
+#   1. ULTRADIC_CODESIGN_IDENTITY, then BLITZTEXT_CODESIGN_IDENTITY (explicit override)
+#   2. "UltraDic Signing" (created by scripts/setup-signing.sh; the release identity)
+#   3. "Blitztext Dev" (legacy self-signed cert; keeps existing local TCC grants)
+#   4. ad-hoc
+# A STABLE identity is mandatory for anything users keep: ad-hoc signatures change
+# on every build, which invalidates TCC grants (Microphone, Accessibility) each
+# time, and a changed identity does the same after an update.
+CODESIGN_IDENTITY="${ULTRADIC_CODESIGN_IDENTITY:-${BLITZTEXT_CODESIGN_IDENTITY:--}}"
+if [ "$CODESIGN_IDENTITY" = "-" ]; then
+    AVAILABLE_IDENTITIES="$(security find-identity -v -p codesigning 2>/dev/null || true)"
+    if grep -q '"UltraDic Signing"' <<<"$AVAILABLE_IDENTITIES"; then
+        CODESIGN_IDENTITY="UltraDic Signing"
+    elif grep -q "Blitztext Dev" <<<"$AVAILABLE_IDENTITIES"; then
+        CODESIGN_IDENTITY="Blitztext Dev"
+    fi
 fi
 if [ "$CODESIGN_IDENTITY" = "-" ]; then
     echo "🔏 Signiere ad-hoc (Berechtigungen müssen nach jedem Build neu erteilt werden)."
@@ -184,21 +194,56 @@ else
     echo "🔏 Signiere mit Identität: $CODESIGN_IDENTITY"
 fi
 
+# Sign a built app bundle. Sparkle's nested code (XPC services, Autoupdate,
+# Updater.app) is signed individually and before the framework and the app:
+# `codesign --deep` would apply the app's entitlements to all of it and break
+# the XPC services. Every re-signed layer must use the same identity.
+sign_app_bundle() {
+    local app="$1"
+    local sparkle="$app/Contents/Frameworks/Sparkle.framework"
+    local sign=(codesign --force --sign "$CODESIGN_IDENTITY" --timestamp=none)
+
+    # Strip xattrs that iCloud/file provider may have re-added before signing
+    xattr -cr "$app" 2>/dev/null || true
+
+    if [ -d "$sparkle" ]; then
+        local xpc
+        for xpc in "$sparkle"/Versions/B/XPCServices/*.xpc; do
+            [ -e "$xpc" ] && "${sign[@]}" --preserve-metadata=entitlements "$xpc"
+        done
+        [ -e "$sparkle/Versions/B/Autoupdate" ] && "${sign[@]}" "$sparkle/Versions/B/Autoupdate"
+        [ -e "$sparkle/Versions/B/Updater.app" ] && "${sign[@]}" "$sparkle/Versions/B/Updater.app"
+        "${sign[@]}" "$sparkle"
+    fi
+
+    local framework
+    for framework in "$app"/Contents/Frameworks/*.framework; do
+        [ -e "$framework" ] || continue
+        [ "$framework" = "$sparkle" ] && continue
+        "${sign[@]}" "$framework"
+    done
+
+    "${sign[@]}" --entitlements "$PROJECT_DIR/Resources/BlitztextMac.entitlements" "$app" 2>&1
+    codesign --verify --deep --strict "$app"
+    echo "✅ Signatur verifiziert (codesign --verify --deep --strict): $app"
+}
+
 # In Projektordner kopieren
-DEST="$SCRIPT_DIR/Blitztext.app"
+DEST="$SCRIPT_DIR/UltraDic.app"
 rm -rf "$DEST"
 cp -R "$APP_PATH" "$DEST"
 echo "🔏 Signiere lokale Development-App. Dieses Artefakt ist nicht notarisiert."
-# Strip xattrs that iCloud/file provider may have re-added before signing
-xattr -cr "$DEST" 2>/dev/null || true
-codesign --force --sign "$CODESIGN_IDENTITY" --entitlements "$PROJECT_DIR/Resources/BlitztextMac.entitlements" "$DEST" 2>&1
+sign_app_bundle "$DEST"
 verify_universal_app "$DEST"
 
 RUN_TARGET="$DEST"
 
 if [ "$INSTALL_APP" = true ]; then
     APPS_DIR="/Applications"
-    INSTALL_DEST="$APPS_DIR/Blitztext.app"
+    INSTALL_DEST="$APPS_DIR/UltraDic.app"
+    # Pre-rename install (same bundle identifier): two copies would fight over
+    # the single-instance guard, login item and privacy grants.
+    LEGACY_DEST="$APPS_DIR/Blitztext.app"
     if [ ! -w "$APPS_DIR" ]; then
         echo "❌ /Applications ist nicht beschreibbar."
         echo "   Fuehre den Befehl mit passenden Rechten erneut aus oder ziehe die App manuell nach /Applications."
@@ -207,10 +252,15 @@ if [ "$INSTALL_APP" = true ]; then
     rm -rf "$INSTALL_DEST"
     cp -R "$DEST" "$INSTALL_DEST"
     echo "🔏 Signiere lokale Development-App. Dieses Artefakt ist nicht notarisiert."
-    xattr -cr "$INSTALL_DEST" 2>/dev/null || true
-    codesign --force --sign "$CODESIGN_IDENTITY" --entitlements "$PROJECT_DIR/Resources/BlitztextMac.entitlements" "$INSTALL_DEST" 2>&1
+    sign_app_bundle "$INSTALL_DEST"
     verify_universal_app "$INSTALL_DEST"
     RUN_TARGET="$INSTALL_DEST"
+    if [ -d "$LEGACY_DEST" ]; then
+        # Quit a running old copy first, otherwise it keeps the event tap.
+        osascript -e 'tell application id "app.blitztext.mac" to quit' >/dev/null 2>&1 || true
+        rm -rf "$LEGACY_DEST"
+        echo "🧹 Alte Installation entfernt: $LEGACY_DEST"
+    fi
 fi
 
 echo ""
@@ -228,12 +278,12 @@ echo "Naechste Schritte:"
 echo "1. App starten"
 echo "2. Mikrofon erlauben"
 echo "3. Fuer direktes Einfuegen zusaetzlich Bedienungshilfen erlauben"
-echo "4. In Blitztext deinen eigenen OpenAI API Key eintragen"
+echo "4. In UltraDic deinen eigenen OpenAI API Key eintragen"
 echo "5. Loslegen und bei Bedarf im Code weiterbauen"
 echo ""
 
 # Optional: direkt starten
 if [ "$RUN_AFTER" = true ]; then
-    echo "🚀 Starte Blitztext ..."
+    echo "🚀 Starte UltraDic ..."
     open "$RUN_TARGET"
 fi

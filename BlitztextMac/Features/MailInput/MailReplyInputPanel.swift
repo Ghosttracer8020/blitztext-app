@@ -1,9 +1,9 @@
 import AppKit
 import SwiftUI
 
-/// Small floating input for the typed Blitztext Mail variant (like Gmail's
+/// Small floating input for the typed UltraDic Mail variant (like Gmail's
 /// "Help me write"). Unlike the pill it needs keyboard focus, so it is a
-/// key-capable panel that activates Blitztext (an LSUIElement app).
+/// key-capable panel that activates UltraDic (an LSUIElement app).
 @MainActor
 final class MailReplyInputPanelController: NSObject, NSWindowDelegate {
     static let contentWidth: CGFloat = 460

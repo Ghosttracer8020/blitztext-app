@@ -1,6 +1,10 @@
 import Foundation
 
 enum AppSupportPaths {
+    // Legacy identifiers: the app is branded "UltraDic", but the bundle
+    // identifier and the Application Support folder keep the original
+    // "Blitztext" names. Renaming them would drop existing settings, stored
+    // API keys and macOS privacy grants of installed copies.
     private static let bundleIdentifier = Bundle.main.bundleIdentifier ?? "app.blitztext.mac"
 
     static var appSupportDirectoryURL: URL {

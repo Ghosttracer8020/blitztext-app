@@ -29,7 +29,7 @@ struct MenuBarView: View {
                 // Top bar
                 HStack {
                     HStack(spacing: 6) {
-                        Text("Blitztext")
+                        Text("UltraDic")
                             .font(.system(size: 11, weight: .medium))
                             .foregroundStyle(.secondary)
 
@@ -224,7 +224,7 @@ struct MenuBarView: View {
             return "\(appState.selectedLocalModelDisplayName) ist noch nicht installiert."
         }
 
-        return "Blitztext nutzt gerade die OpenAI-Transkription."
+        return "UltraDic nutzt gerade die OpenAI-Transkription."
     }
 
     private var accessibilityHintBanner: some View {
@@ -315,7 +315,7 @@ struct MenuBarView: View {
     private var onboardingPage: some View {
         VStack(spacing: 0) {
             HStack {
-                Text("Willkommen bei Blitztext")
+                Text("Willkommen bei UltraDic")
                     .font(.system(size: 12, weight: .semibold))
                     .foregroundStyle(.primary)
 
@@ -366,7 +366,8 @@ struct MenuBarView: View {
 
                     onboardingStep(number: "1", title: "OpenAI Key speichern", detail: "Öffne die Einstellungen und trage deinen eigenen OpenAI API Key ein.")
                     onboardingStep(number: "2", title: "Berechtigungen erlauben", detail: "Mikrofon und Bedienungshilfen für das Einfügen freigeben.")
-                    onboardingStep(number: "3", title: "Workflow wählen", detail: "Blitztext oder einen der Verbesserer-Workflows direkt aus der Menüleiste starten.")
+                    onboardingStep(number: "3", title: "Workflow wählen", detail: "UltraDic oder einen der Verbesserer-Workflows direkt aus der Menüleiste starten.")
+                    onboardingStep(number: "4", title: "Namen eintragen", detail: "Für UltraDic Mail: Unter Einstellungen > UltraDic Mail deinen Namen für den Gruß eintragen.")
                 }
 
                 HStack(spacing: 8) {
@@ -481,7 +482,7 @@ struct MenuBarView: View {
                 .frame(width: 18, height: 18)
 
             VStack(alignment: .leading, spacing: 4) {
-                Text("Lege Blitztext zuerst nach /Applications.")
+                Text("Lege UltraDic zuerst nach /Applications.")
                     .font(.system(size: 11.5, weight: .semibold))
                     .foregroundStyle(.primary)
 
@@ -636,6 +637,17 @@ struct MenuBarView: View {
     private var appFooter: some View {
         HStack {
             Spacer()
+            Button("Nach Updates suchen\u{2026}") {
+                UpdateService.shared.checkForUpdates()
+            }
+            .font(.system(size: 10, weight: .medium))
+            .foregroundStyle(.quaternary)
+            .buttonStyle(SubtleButtonStyle())
+            .disabled(!UpdateService.shared.canCheck)
+            .help(UpdateService.shared.statusText)
+            Text("\u{00B7}")
+                .font(.system(size: 10))
+                .foregroundStyle(.quaternary)
             Button("Beenden") {
                 NSApplication.shared.terminate(nil)
             }

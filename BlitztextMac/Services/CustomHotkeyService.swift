@@ -11,7 +11,7 @@ import Cocoa
 /// ~1s would get the tap disabled by the system mid-combo.
 /// Requires Accessibility permission (already needed for auto-paste).
 /// What a custom binding triggers: a workflow (hold/toggle by the global
-/// mode) or the typed Blitztext Mail input (single press).
+/// mode) or the typed UltraDic Mail input (single press).
 enum HotkeyTarget: Equatable {
     case workflow(WorkflowType)
     case typedMailReply

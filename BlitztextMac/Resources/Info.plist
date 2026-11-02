@@ -19,9 +19,19 @@
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
 	<key>NSMicrophoneUsageDescription</key>
-	<string>Blitztext benötigt Mikrofon-Zugriff für die Sprach-Transkription.</string>
+	<string>UltraDic benötigt Mikrofon-Zugriff für die Sprach-Transkription.</string>
 	<key>NSAppleEventsUsageDescription</key>
-	<string>Blitztext liest die markierte E-Mail in Mail, um eine Antwort zu formulieren.</string>
+	<string>UltraDic liest die markierte E-Mail in Mail, um eine Antwort zu formulieren.</string>
+	<!-- Sparkle updates. SUFeedURL derives from ULTRADIC_HUB_URL and SUPublicEDKey from
+	     SPARKLE_PUBLIC_KEY, both defined in project.yml. SUPublicEDKey is a PLACEHOLDER
+	     ("REPLACE_WITH_PUBLIC_ED_KEY") until the real key exists; the app then keeps the
+	     updater off. -->
+	<key>SUFeedURL</key>
+	<string>$(ULTRADIC_HUB_URL)/updates/appcast.xml</string>
+	<key>SUPublicEDKey</key>
+	<string>$(SPARKLE_PUBLIC_KEY)</string>
+	<key>SUEnableAutomaticChecks</key>
+	<true/>
 	<key>LSUIElement</key>
 	<true/>
 	<key>CFBundleIconFile</key>

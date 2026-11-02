@@ -15,6 +15,7 @@ build/
 
 # Local app artifacts
 Blitztext.app
+UltraDic.app
 dist/
 models/
 *.mlmodel

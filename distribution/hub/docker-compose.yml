@@ -1,0 +1,36 @@
+# NAS: /volume1/docker/ultradic-hub. Deploy with distribution/hub/scripts/deploy.sh.
+# Port only on 127.0.0.2 – tailscale serve is the only way in; otherwise the
+# Tailscale-User-* identity headers could be forged. NOT 127.0.0.1: the NAS runs tailscaled with
+# --tun=userspace-networking, which forwards every direct Tailnet connection (100.86.159.70:<port>)
+# to 127.0.0.1:<port> – without serve and without identity headers (found 2026-09-25, see ONE hub).
+services:
+  hub:
+    build:
+      context: .
+      args:
+        GIT_SHA: ${GIT_SHA:-unknown}
+    image: ultradic-hub:latest
+    container_name: ultradic-hub
+    restart: unless-stopped
+    user: "1003:100"
+    read_only: true
+    tmpfs:
+      - /tmp:size=8m
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    mem_limit: 96m
+    ports:
+      - "127.0.0.2:3013:3000"
+    environment:
+      DATA_DIR: /app/data
+      HUB_URL: ${HUB_URL:-https://ugreen-nas.tail076274.ts.net:8452}
+    volumes:
+      - ./data:/app/data
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:3000/api/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s

@@ -100,7 +100,7 @@ struct AccessSettingsView: View {
                             .font(.system(size: 11.5, weight: .semibold))
                             .foregroundStyle(.primary)
 
-                        Text("Öffne Bedienungshilfen und aktiviere Blitztext. Falls Blitztext schon aktiv ist, einmal aus- und wieder einschalten.")
+                        Text("Öffne Bedienungshilfen und aktiviere UltraDic. Falls UltraDic schon aktiv ist, einmal aus- und wieder einschalten.")
                             .font(.system(size: 10.5))
                             .foregroundStyle(.secondary)
                             .fixedSize(horizontal: false, vertical: true)
@@ -221,7 +221,7 @@ struct AccessSettingsView: View {
                         .fixedSize(horizontal: false, vertical: true)
                 }
 
-                Text("Nur f\u{00FC}r Blitztext Mail n\u{00F6}tig. Der Text der markierten Mail (inklusive Verlauf) und deine Stichpunkte gehen direkt an die Anthropic API. Die Transkription l\u{00E4}uft weiterhin \u{00FC}ber OpenAI.")
+                Text("Nur f\u{00FC}r UltraDic Mail n\u{00F6}tig. Der Text der markierten Mail (inklusive Verlauf) und deine Stichpunkte gehen direkt an die Anthropic API. Die Transkription l\u{00E4}uft weiterhin \u{00FC}ber OpenAI.")
                     .font(.system(size: 10.5))
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -245,7 +245,7 @@ struct AccessSettingsView: View {
                     .textSelection(.enabled)
 
                 if !BlitztextInstallLocationService.otherInstalledBundleURLs.isEmpty {
-                    Text("Weitere Blitztext-Kopien auf diesem Mac können doppelte Login-Items auslösen.")
+                    Text("Weitere UltraDic-Kopien auf diesem Mac können doppelte Login-Items auslösen.")
                         .font(.system(size: 10.5))
                         .foregroundStyle(.orange)
                         .fixedSize(horizontal: false, vertical: true)
@@ -289,7 +289,7 @@ struct AccessSettingsView: View {
                     .fixedSize(horizontal: false, vertical: true)
 
                 if !currentInstallLocation.isCanonicalInstall {
-                    Text("Hotkeys und Login-Start laufen am stabilsten, wenn Blitztext aus /Applications gestartet wird.")
+                    Text("Hotkeys und Login-Start laufen am stabilsten, wenn UltraDic aus /Applications gestartet wird.")
                         .font(.system(size: 10.5))
                         .foregroundStyle(.orange)
                         .fixedSize(horizontal: false, vertical: true)
@@ -304,7 +304,7 @@ struct AccessSettingsView: View {
             VStack(alignment: .leading, spacing: 8) {
                 SectionLabel(text: "Beim Anmelden")
 
-                Toggle("Blitztext automatisch starten", isOn: Binding(
+                Toggle("UltraDic automatisch starten", isOn: Binding(
                     get: { launchAtLoginService.isEnabled },
                     set: { launchAtLoginService.setEnabled($0) }
                 ))
@@ -337,7 +337,7 @@ struct AccessSettingsView: View {
             VStack(alignment: .leading, spacing: 6) {
                 SectionLabel(text: "Hinweis")
 
-                Text("Fuer direktes Einfuegen: Blitztext einmal nach /Applications legen und danach Mikrofon sowie Bedienungshilfen erlauben.")
+                Text("Fuer direktes Einfuegen: UltraDic einmal nach /Applications legen und danach Mikrofon sowie Bedienungshilfen erlauben.")
                     .font(.system(size: 11))
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -356,7 +356,7 @@ struct AccessSettingsView: View {
             VStack(alignment: .leading, spacing: 8) {
                 SectionLabel(text: "Sauber Entfernen")
 
-                Text("Vor dem Löschen Blitztext erst auf diesem Mac bereinigen. So verschwinden Anmeldestart und lokale Daten sauber aus dem Weg.")
+                Text("Vor dem Löschen UltraDic erst auf diesem Mac bereinigen. So verschwinden Anmeldestart und lokale Daten sauber aus dem Weg.")
                     .font(.system(size: 10.5))
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -365,7 +365,7 @@ struct AccessSettingsView: View {
                     Toggle("Zugangsdaten und Einstellungen dieses Macs löschen", isOn: $deleteLocalDataOnCleanup)
                         .toggleStyle(.switch)
 
-                    Text("Danach Blitztext beenden und die App aus /Applications löschen. Bereits verwaiste alte Login-Items können in den Systemeinstellungen einmalig manuell entfernt werden.")
+                    Text("Danach UltraDic beenden und die App aus /Applications löschen. Bereits verwaiste alte Login-Items können in den Systemeinstellungen einmalig manuell entfernt werden.")
                         .font(.system(size: 10.5))
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
@@ -478,7 +478,7 @@ struct AccessSettingsView: View {
             return
         }
 
-        // The Anthropic key is optional (Blitztext Mail only): an empty field
+        // The Anthropic key is optional (UltraDic Mail only): an empty field
         // while editing just means "nothing to save".
         let trimmedAnthropicKey = anthropicAPIKey.trimmingCharacters(in: .whitespacesAndNewlines)
         if (editingAnthropicKey || !appState.hasValue(for: .anthropicAPIKey)) && !trimmedAnthropicKey.isEmpty {
@@ -571,11 +571,11 @@ struct AccessSettingsView: View {
     private var installationHeadline: String {
         switch currentInstallLocation {
         case .applications:
-            return "Blitztext liegt am richtigen Ort."
+            return "UltraDic liegt am richtigen Ort."
         case .userApplications:
-            return "Blitztext liegt noch in ~/Applications."
+            return "UltraDic liegt noch in ~/Applications."
         case .outsideApplications:
-            return "Blitztext liegt noch nicht in /Applications."
+            return "UltraDic liegt noch nicht in /Applications."
         case .unknown:
             return "Der Installationsort konnte nicht sicher erkannt werden."
         }
@@ -589,11 +589,11 @@ struct AccessSettingsView: View {
             }
             return "Diese Kopie ist korrekt. Zusätzliche Kopien solltest du später entfernen."
         case .userApplications:
-            return "Fuer stabile Hotkeys und Login-Items sollte Blitztext nur aus /Applications laufen."
+            return "Fuer stabile Hotkeys und Login-Items sollte UltraDic nur aus /Applications laufen."
         case .outsideApplications:
-            return "Verschiebe Blitztext einmal nach /Applications, damit Anmeldestart und Hotkeys sauber bleiben."
+            return "Verschiebe UltraDic einmal nach /Applications, damit Anmeldestart und Hotkeys sauber bleiben."
         case .unknown:
-            return "Öffne Blitztext möglichst direkt aus /Applications."
+            return "Öffne UltraDic möglichst direkt aus /Applications."
         }
     }
 
@@ -633,8 +633,8 @@ struct AccessSettingsView: View {
 
         if report.failedItems.isEmpty {
             cleanupStatusText = deleteLocalDataOnCleanup
-                ? "Anmeldestart und lokale Daten wurden bereinigt. Jetzt Blitztext beenden und aus /Applications löschen."
-                : "Anmeldestart wurde deaktiviert. Jetzt Blitztext beenden und aus /Applications löschen."
+                ? "Anmeldestart und lokale Daten wurden bereinigt. Jetzt UltraDic beenden und aus /Applications löschen."
+                : "Anmeldestart wurde deaktiviert. Jetzt UltraDic beenden und aus /Applications löschen."
             showCleanupOptions = false
 
             let urlsToReveal = report.knownInstallBundleURLs.isEmpty
@@ -846,22 +846,22 @@ struct CustomizeSettingsView: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
 
-            // MARK: Blitztext
+            // MARK: UltraDic
             VStack(alignment: .leading, spacing: 10) {
-                SectionLabel(text: "Blitztext")
+                SectionLabel(text: "UltraDic")
 
                 Toggle("E-Mail-Abs\u{00E4}tze automatisch setzen", isOn: $appState.transcriptionSettings.emailParagraphsEnabled)
                     .font(.system(size: 11.5))
 
-                Text("Erkennt Begr\u{00FC}\u{00DF}ung (\u{201E}Hallo Thomas,\u{201C}) und Verabschiedung (\u{201E}Viele Gr\u{00FC}\u{00DF}e Ben\u{201C}) im Diktat und setzt dort Abs\u{00E4}tze. L\u{00E4}uft lokal auf dem Mac, der Wortlaut bleibt unver\u{00E4}ndert.")
+                Text("Erkennt Begr\u{00FC}\u{00DF}ung (\u{201E}Hallo Thomas,\u{201C}) und Verabschiedung (\u{201E}Viele Gr\u{00FC}\u{00DF}e Anna\u{201C}) im Diktat und setzt dort Abs\u{00E4}tze. L\u{00E4}uft lokal auf dem Mac, der Wortlaut bleibt unver\u{00E4}ndert.")
                     .font(.system(size: 10.5))
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
 
-            // MARK: Blitztext+
+            // MARK: UltraDic+
             VStack(alignment: .leading, spacing: 10) {
-                SectionLabel(text: "Blitztext+")
+                SectionLabel(text: "UltraDic+")
 
                 // Tone
                 VStack(alignment: .leading, spacing: 8) {
@@ -914,9 +914,9 @@ struct CustomizeSettingsView: View {
                 }
             }
 
-            // MARK: Blitztext $%&!
+            // MARK: UltraDic $%&!
             VStack(alignment: .leading, spacing: 10) {
-                SectionLabel(text: "Blitztext $%&!")
+                SectionLabel(text: "UltraDic $%&!")
 
                 VStack(alignment: .leading, spacing: 8) {
                     Text("Eigene Anweisung")
@@ -943,9 +943,9 @@ struct CustomizeSettingsView: View {
                 }
             }
 
-            // MARK: Blitztext :)
+            // MARK: UltraDic :)
             VStack(alignment: .leading, spacing: 10) {
-                SectionLabel(text: "Blitztext :)")
+                SectionLabel(text: "UltraDic :)")
 
                 VStack(alignment: .leading, spacing: 8) {
                     Text("Emoji-Dichte")
@@ -961,9 +961,9 @@ struct CustomizeSettingsView: View {
                 }
             }
 
-            // MARK: Blitztext Prompt
+            // MARK: UltraDic Prompt
             VStack(alignment: .leading, spacing: 10) {
-                SectionLabel(text: "Blitztext Prompt")
+                SectionLabel(text: "UltraDic Prompt")
 
                 VStack(alignment: .leading, spacing: 8) {
                     Text("Sprache des Prompts")
@@ -1008,9 +1008,29 @@ struct CustomizeSettingsView: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
 
-            // MARK: Blitztext Mail
+            // MARK: UltraDic Mail
             VStack(alignment: .leading, spacing: 10) {
-                SectionLabel(text: "Blitztext Mail")
+                SectionLabel(text: "UltraDic Mail")
+
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Dein Name")
+                        .font(.system(size: 11))
+                        .foregroundStyle(.secondary)
+
+                    HStack(spacing: 8) {
+                        TextField("Vorname, z.B. Anna", text: $appState.mailReplySettings.senderFirstName)
+                            .textFieldStyle(.roundedBorder)
+                            .font(.system(size: 11))
+                        TextField("Ganzer Name, z.B. Anna Muster", text: $appState.mailReplySettings.senderFullName)
+                            .textFieldStyle(.roundedBorder)
+                            .font(.system(size: 11))
+                    }
+
+                    Text("Der Vorname steht im Gruß bei Du, der ganze Name bei Sie. Leer = Gruß ohne Namenszeile.")
+                        .font(.system(size: 10.5))
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
 
                 VStack(alignment: .leading, spacing: 8) {
                     Text("Eigene Anweisung")
@@ -1036,7 +1056,7 @@ struct CustomizeSettingsView: View {
                         }
                 }
 
-                Text("Leer = eingebaute Anweisung: immer Du (Sie nur, wenn du im Diktat ausdr\u{00FC}cklich siezt), Ton aus dem Mailverlauf, nichts dazuerfinden, Gru\u{00DF} mit \u{201E}Ben\u{201C} (Du) oder \u{201E}Ben Scheffler\u{201C} (Sie). Eine eigene Anweisung ersetzt sie komplett; die Eigennamen-Liste wird angeh\u{00E4}ngt. Sie gilt auch f\u{00FC}r neue Mails; dort bleiben Anrede-Regel, Begr\u{00FC}\u{00DF}ung, Gru\u{00DF} und Ausgabeformat fest, die Anweisung sollte also nur auf den Ton wirken. Braucht den Anthropic API Key unter Zugang. Funktioniert nur im Antwort- oder Neue-Mail-Fenster von Apple Mail.")
+                Text("Leer = eingebaute Anweisung: immer Du (Sie nur, wenn du im Diktat ausdr\u{00FC}cklich siezt), Ton aus dem Mailverlauf, nichts dazuerfinden, Gru\u{00DF} mit deinem Vornamen (Du) oder ganzem Namen (Sie). Eine eigene Anweisung ersetzt sie komplett; die Eigennamen-Liste wird angeh\u{00E4}ngt. Sie gilt auch f\u{00FC}r neue Mails; dort bleiben Anrede-Regel, Begr\u{00FC}\u{00DF}ung, Gru\u{00DF} und Ausgabeformat fest, die Anweisung sollte also nur auf den Ton wirken. Braucht den Anthropic API Key unter Zugang. Funktioniert nur im Antwort- oder Neue-Mail-Fenster von Apple Mail.")
                     .font(.system(size: 10.5))
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -1117,7 +1137,7 @@ struct CustomizeSettingsView: View {
 /// While recording, both hotkey systems are suspended so the pressed combo
 /// does not trigger a workflow.
 private struct ShortcutRecorderView: View {
-    /// WorkflowType raw value, or the typed Blitztext Mail shortcut ID.
+    /// WorkflowType raw value, or the typed UltraDic Mail shortcut ID.
     let shortcutID: String
     @Bindable var appState: AppState
     @State private var keyMonitor: Any?

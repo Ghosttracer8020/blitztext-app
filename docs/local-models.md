@@ -1,6 +1,6 @@
 # Local Models
 
-Blitztext can run transcription locally with WhisperKit/CoreML. The app does not bundle a speech model, but it can download the selected compatible model from Hugging Face into the local cache.
+UltraDic can run transcription locally with WhisperKit/CoreML. The app does not bundle a speech model, but it can download the selected compatible model from Hugging Face into the local cache.
 
 ## Recommended First Model
 
@@ -25,9 +25,9 @@ The app detects installed model folders that contain `AudioEncoder.mlmodelc`, `M
 
 ## Install From The App
 
-Open Blitztext, go to **Settings > Anpassen**, choose a local model, and click **Installieren**. You can also switch on **Sicherer Lokaler Modus** from the main popover; if the selected model is missing, Blitztext starts the download and installs it into the local cache.
+Open UltraDic, go to **Settings > Anpassen**, choose a local model, and click **Installieren**. You can also switch on **Sicherer Lokaler Modus** from the main popover; if the selected model is missing, UltraDic starts the download and installs it into the local cache.
 
-After the model is installed, the Blitztext transcription workflow can run in local mode. The rewriting workflows still use OpenAI, so they are paused while secure local mode is active.
+After the model is installed, the UltraDic transcription workflow can run in local mode. The rewriting workflows still use OpenAI, so they are paused while secure local mode is active.
 
 ## Optional Manual Install
 
@@ -67,6 +67,6 @@ If the folder is nested differently, the app will not detect the model.
 ## Notes
 
 - First use can be slower because the model has to load and prewarm.
-- Local transcription avoids sending audio to OpenAI for the Blitztext workflow.
+- Local transcription avoids sending audio to OpenAI for the UltraDic workflow.
 - The app currently supports local transcription only, not local rewriting.
 - Models are downloaded on demand so the repository and app package stay small and auditable.

@@ -1,6 +1,6 @@
-# Blitztext App
+# UltraDic App
 
-Blitztext App is an experimental open-source macOS menubar app for turning speech into text.
+UltraDic is a renamed fork of the open-source Blitztext app (see TRADEMARKS.md: the upstream name and logo are not reused). It is an experimental open-source macOS menubar app for turning speech into text.
 
 It is intentionally small and unfinished. The goal is to make a real workflow visible and hackable: press a hotkey, speak, get text back, optionally rewrite it, and paste it into the app you were using.
 
@@ -10,18 +10,18 @@ This is a learning and experimentation project, not a polished product.
 
 ## What It Does
 
-- **Blitztext**: record speech and transcribe it; optional email paragraphing (greeting/sign-off) is applied on-device, no extra API call.
-- **Blitztext+**: record speech, transcribe it, then turn the rough draft into cleaner writing.
-- **Blitztext $%&!**: turn frustrated speech into a calmer message.
-- **Blitztext :)**: add fitting emojis to dictated text.
-- **Blitztext Prompt**: turn spoken instructions into a structured prompt with numbered points you can refer back to.
-- **Blitztext Mail**: in an open Apple Mail reply window, dictate bullet points and get a finished reply (always Du unless your dictation explicitly uses Sie/Ihnen or says "siezen"; tone follows the thread) pasted at the cursor. Uses Claude for writing, so it needs an Anthropic API key in addition to the OpenAI key. It never sends anything; you review and send yourself. If Claude finds something worth checking in the thread (a point that contradicts an earlier agreement, a question you ask that was already answered, an open question you did not address), a small non-focus-stealing panel "Prüfen vor dem Senden" appears after the paste; hints never go into the mail text. Default shortcut: right Option + M (dictate). Right Option + N opens a small input panel instead (type the points, Enter sends, Shift+Enter new line, Esc cancels) - same result, for when dictating does not fit; no OpenAI key needed for that variant. The same shortcuts also work in a new-mail window (title without Re:/AW:/Fwd:): Claude then writes a complete mail from your points and the recipient names in To/Cc (greeting, closing), fills the subject only if it is still empty, and pastes into the message body; no hints in that mode. The address form is always Du, unless your points explicitly use the formal address (Sie, Ihnen, ...) or say "siezen" / "per Sie"; nothing else (thread, recipient, sender domain) changes it.
+- **UltraDic**: record speech and transcribe it; optional email paragraphing (greeting/sign-off) is applied on-device, no extra API call.
+- **UltraDic+**: record speech, transcribe it, then turn the rough draft into cleaner writing.
+- **UltraDic $%&!**: turn frustrated speech into a calmer message.
+- **UltraDic :)**: add fitting emojis to dictated text.
+- **UltraDic Prompt**: turn spoken instructions into a structured prompt with numbered points you can refer back to.
+- **UltraDic Mail**: in an open Apple Mail reply window, dictate bullet points and get a finished reply (always Du unless your dictation explicitly uses Sie/Ihnen or says "siezen"; tone follows the thread) pasted at the cursor. Uses Claude for writing, so it needs an Anthropic API key in addition to the OpenAI key. It never sends anything; you review and send yourself. If Claude finds something worth checking in the thread (a point that contradicts an earlier agreement, a question you ask that was already answered, an open question you did not address), a small non-focus-stealing panel "Prüfen vor dem Senden" appears after the paste; hints never go into the mail text. Default shortcut: right Option + M (dictate). Right Option + N opens a small input panel instead (type the points, Enter sends, Shift+Enter new line, Esc cancels) - same result, for when dictating does not fit; no OpenAI key needed for that variant. The same shortcuts also work in a new-mail window (title without Re:/AW:/Fwd:): Claude then writes a complete mail from your points and the recipient names in To/Cc (greeting, closing), fills the subject only if it is still empty, and pastes into the message body; no hints in that mode. The address form is always Du, unless your points explicitly use the formal address (Sie, Ihnen, ...) or say "siezen" / "per Sie"; nothing else (thread, recipient, sender domain) changes it.
 
 ## Important Preview Notes
 
 - macOS only.
-- Bring your own OpenAI API key (and an Anthropic API key if you want Blitztext Mail).
-- No hosted Blitztext backend is included or provided.
+- Bring your own OpenAI API key (and an Anthropic API key if you want UltraDic Mail).
+- No hosted UltraDic backend is included or provided.
 - In online mode, audio and text are sent directly from the app to the OpenAI API. Audio is streamed live to OpenAI while you hold the hotkey; if that fails, the recorded file is transcribed in one request instead.
 - Optional local transcription via WhisperKit/CoreML if you install a compatible model locally.
 - `./build.sh` creates a locally ad-hoc-signed development app. No notarized release binary is provided.
@@ -36,12 +36,12 @@ The intent is not to ship a one-click finished app. The intent is to make a real
 
 <table>
   <tr>
-    <td><img src="docs/screenshots/online-mode.png" alt="Blitztext online transcription mode" width="420"></td>
-    <td><img src="docs/screenshots/local-mode.png" alt="Blitztext secure local transcription mode" width="420"></td>
+    <td><img src="docs/screenshots/online-mode.png" alt="UltraDic online transcription mode" width="420"></td>
+    <td><img src="docs/screenshots/local-mode.png" alt="UltraDic secure local transcription mode" width="420"></td>
   </tr>
   <tr>
-    <td><img src="docs/screenshots/local-model-picker.png" alt="Blitztext local model picker" width="420"></td>
-    <td><img src="docs/screenshots/settings-customize.png" alt="Blitztext settings and customization view" width="420"></td>
+    <td><img src="docs/screenshots/local-model-picker.png" alt="UltraDic local model picker" width="420"></td>
+    <td><img src="docs/screenshots/settings-customize.png" alt="UltraDic settings and customization view" width="420"></td>
   </tr>
 </table>
 
@@ -90,14 +90,14 @@ For a slower, more explicit walkthrough, see [docs/setup.md](docs/setup.md).
 
 ## Permissions
 
-Blitztext asks for:
+UltraDic asks for:
 
 - **Microphone**: to record your voice.
 - **Accessibility**: to paste the result back into the app you were using.
 
 If you do not grant Accessibility permission, you can still copy results manually.
 
-Full Disk Access is not required. If auto-paste does not work even though transcription succeeds, open **System Settings -> Privacy & Security -> Accessibility**, enable Blitztext there, restart Blitztext, and try again with the cursor focused in a text field. If macOS shows multiple Blitztext entries, remove or disable the old ones and grant the permission to the app you just built or installed.
+Full Disk Access is not required. If auto-paste does not work even though transcription succeeds, open **System Settings -> Privacy & Security -> Accessibility**, enable UltraDic there, restart UltraDic, and try again with the cursor focused in a text field. If macOS shows multiple UltraDic entries, remove or disable the old ones and grant the permission to the app you just built or installed.
 
 ## Data Flow
 

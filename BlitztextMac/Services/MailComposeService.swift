@@ -2,9 +2,10 @@ import ApplicationServices
 import Foundation
 import os
 
+// Legacy subsystem id: UltraDic keeps the original bundle identifier.
 private let mailComposeLogger = Logger(subsystem: "app.blitztext.mac", category: "MailCompose")
 
-/// What Blitztext Mail knows about a new mail the user is writing, as read
+/// What UltraDic Mail knows about a new mail the user is writing, as read
 /// from the compose window. Display names only: Mail's To/Cc fields expose
 /// no addresses through Accessibility.
 struct MailComposeContext: Equatable {

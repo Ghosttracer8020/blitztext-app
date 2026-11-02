@@ -3,6 +3,7 @@ import AppKit
 import Observation
 import os
 
+// Legacy subsystem id: UltraDic keeps the original bundle identifier.
 private let mailReplyLogger = Logger(subsystem: "app.blitztext.mac", category: "MailReply")
 
 /// Bullet points -> reply body for the Apple Mail reply window that is
@@ -173,7 +174,7 @@ final class MailReplyWorkflow: Workflow {
     }
 
     private func cancelTyped() {
-        // Blitztext was activated for the panel; hand focus back to Mail.
+        // UltraDic was activated for the panel; hand focus back to Mail.
         if let pid = typedSession?.capture.pid {
             NSRunningApplication(processIdentifier: pid)?.activate(options: [])
         }
@@ -288,7 +289,7 @@ final class MailReplyWorkflow: Workflow {
     /// Claude writes the reply (or the new mail) from the captured Mail state
     /// and the points (dictated transcript or typed text), then it goes to the
     /// regular paste path. With `restoringWindow` (typed flow) Mail's window
-    /// is brought back to the front first, because Blitztext's input panel
+    /// is brought back to the front first, because UltraDic's input panel
     /// was the active app.
     private func generateAndDeliver(
         capture: MailCapture,
@@ -305,9 +306,12 @@ final class MailReplyWorkflow: Workflow {
             let result = try await AnthropicService.completeReply(
                 systemPrompt: MailReplyPromptBuilder.systemPrompt(
                     customInstruction: settings.systemPrompt,
-                    customTerms: customTerms
+                    customTerms: customTerms,
+                    sender: settings.sender
                 ),
-                userMessage: MailReplyPromptBuilder.userMessage(context: context, transcript: points)
+                userMessage: MailReplyPromptBuilder.userMessage(
+                    context: context, transcript: points, sender: settings.sender
+                )
             )
             reply = result.reply
             hints = result.hints
@@ -315,9 +319,12 @@ final class MailReplyWorkflow: Workflow {
             let result = try await AnthropicService.completeCompose(
                 systemPrompt: MailReplyPromptBuilder.composeSystemPrompt(
                     customInstruction: settings.systemPrompt,
-                    customTerms: customTerms
+                    customTerms: customTerms,
+                    sender: settings.sender
                 ),
-                userMessage: MailReplyPromptBuilder.composeUserMessage(context: context, transcript: points)
+                userMessage: MailReplyPromptBuilder.composeUserMessage(
+                    context: context, transcript: points, sender: settings.sender
+                )
             )
             reply = result.reply
             subject = result.subject

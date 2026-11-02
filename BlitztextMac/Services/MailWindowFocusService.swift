@@ -2,7 +2,7 @@ import AppKit
 import ApplicationServices
 
 /// Brings Mail's remembered reply window back to the front after the typed
-/// input panel (which made Blitztext the active app) is gone, so the regular
+/// input panel (which made UltraDic the active app) is gone, so the regular
 /// paste path lands in the right text field.
 @MainActor
 enum MailWindowFocusService {

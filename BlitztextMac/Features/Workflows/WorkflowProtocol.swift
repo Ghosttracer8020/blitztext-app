@@ -19,13 +19,13 @@ enum WorkflowType: String, CaseIterable, Identifiable, Codable {
 
     var displayName: String {
         switch self {
-        case .transcription: return "Blitztext"
-        case .localTranscription: return "Blitztext Lokal"
-        case .textImprover: return "Blitztext+"
-        case .dampfAblassen: return "Blitztext $%&!"
-        case .emojiText: return "Blitztext :)"
-        case .promptText: return "Blitztext Prompt"
-        case .mailReply: return "Blitztext Mail"
+        case .transcription: return "UltraDic"
+        case .localTranscription: return "UltraDic Lokal"
+        case .textImprover: return "UltraDic+"
+        case .dampfAblassen: return "UltraDic $%&!"
+        case .emojiText: return "UltraDic :)"
+        case .promptText: return "UltraDic Prompt"
+        case .mailReply: return "UltraDic Mail"
         }
     }
 
@@ -152,9 +152,9 @@ struct AppSettings: Codable {
     var hasAutoSelectedFastLocalModel: Bool = false
     var customShortcuts: [String: KeyboardShortcut] = AppSettings.defaultCustomShortcuts
     var clipboardAutoClearEnabled: Bool = true
-    /// True once the Blitztext Mail shortcut was offered to this profile.
+    /// True once the UltraDic Mail shortcut was offered to this profile.
     var hasMigratedMailReplyShortcut: Bool = true
-    /// True once the typed Blitztext Mail shortcut was offered to this profile.
+    /// True once the typed UltraDic Mail shortcut was offered to this profile.
     var hasMigratedMailReplyTypedShortcut: Bool = true
 
     init(

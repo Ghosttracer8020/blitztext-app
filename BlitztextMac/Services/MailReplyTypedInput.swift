@@ -1,6 +1,6 @@
 import Foundation
 
-// Pure helpers of the typed Blitztext Mail input panel. Foundation-only:
+// Pure helpers of the typed UltraDic Mail input panel. Foundation-only:
 // compiles into the test target.
 
 enum MailSenderName {

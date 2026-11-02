@@ -117,7 +117,7 @@ final class AppState {
 
     /// Workflow whose shortcut is currently being recorded; other recorder
     /// fields disable themselves so only one capture runs at a time.
-    /// Shortcut ID: a WorkflowType raw value, or the typed Blitztext Mail ID.
+    /// Shortcut ID: a WorkflowType raw value, or the typed UltraDic Mail ID.
     var recordingShortcutFor: String?
 
     /// While the settings UI records a new shortcut, both hotkey systems are
@@ -368,7 +368,7 @@ final class AppState {
     }
 
     /// True when this workflow's shortcut is a modifier-only prefix of another
-    /// binding (e.g. rAlt for Blitztext+ vs. rAlt+rCmd for dictation). Pressing
+    /// binding (e.g. rAlt for UltraDic+ vs. rAlt+rCmd for dictation). Pressing
     /// the chord always passes through the prefix state for a few dozen
     /// milliseconds, so starting instantly would record and immediately discard
     /// a throwaway snippet — and that stop/start burst on the input device is
@@ -396,9 +396,9 @@ final class AppState {
         }
     }
 
-    // MARK: - Typed Blitztext Mail
+    // MARK: - Typed UltraDic Mail
 
-    /// Typed variant of Blitztext Mail (single press, no recording): checks and
+    /// Typed variant of UltraDic Mail (single press, no recording): checks and
     /// mail capture run now, while Mail is still frontmost, then the input
     /// panel opens. Errors surface like the dictated path.
     func startTypedMailReply() {
@@ -445,7 +445,7 @@ final class AppState {
         page = .main
 
         if appSettings.secureLocalModeEnabled {
-            workflow.phase = .error("Blitztext Mail ist im lokalen Modus pausiert.")
+            workflow.phase = .error("UltraDic Mail ist im lokalen Modus pausiert.")
             return
         }
         workflow.startTyped()
@@ -660,7 +660,11 @@ final class AppState {
     }
 
     private static func loadMailReplySettings() -> MailReplySettings {
-        loadContainer()?.mailReply ?? MailReplySettings()
+        let container = loadContainer()
+        return MailReplySettings.migratingSenderName(
+            stored: container?.mailReply,
+            settingsFileExists: container != nil
+        )
     }
 
     private static func loadContainer() -> SettingsContainer? {

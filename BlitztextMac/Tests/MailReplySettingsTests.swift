@@ -23,6 +23,49 @@ final class MailReplySettingsTests: XCTestCase {
         XCTAssertEqual(try JSONDecoder().decode(MailReplySettings.self, from: data), original)
     }
 
+    // MARK: - Sender name ("Dein Name")
+
+    func testSenderNameDefaultsToEmptyAndRoundTrips() throws {
+        XCTAssertEqual(MailReplySettings().sender, MailSender())
+        let original = MailReplySettings(senderFirstName: "Anna", senderFullName: "Anna Muster", senderNameMigrated: true)
+        let data = try JSONEncoder().encode(original)
+        let decoded = try JSONDecoder().decode(MailReplySettings.self, from: data)
+        XCTAssertEqual(decoded, original)
+        XCTAssertEqual(decoded.sender, MailSender(firstName: "Anna", fullName: "Anna Muster"))
+    }
+
+    func testExistingSettingsWithoutNameGetPrefilledOnce() {
+        let stored = MailReplySettings(systemPrompt: "Kurz.")
+        let migrated = MailReplySettings.migratingSenderName(stored: stored, settingsFileExists: true)
+        XCTAssertEqual(migrated.senderFirstName, "Ben")
+        XCTAssertEqual(migrated.senderFullName, "Ben Scheffler")
+        XCTAssertEqual(migrated.systemPrompt, "Kurz.")
+        XCTAssertTrue(migrated.senderNameMigrated)
+    }
+
+    func testSettingsFileWithoutMailSectionIsPrefilledToo() {
+        let migrated = MailReplySettings.migratingSenderName(stored: nil, settingsFileExists: true)
+        XCTAssertEqual(migrated.senderFirstName, "Ben")
+    }
+
+    func testFreshInstallStartsEmpty() {
+        let migrated = MailReplySettings.migratingSenderName(stored: nil, settingsFileExists: false)
+        XCTAssertEqual(migrated.sender, MailSender())
+        XCTAssertTrue(migrated.senderNameMigrated)
+    }
+
+    func testNameClearedOnPurposeIsNotPrefilledAgain() {
+        let cleared = MailReplySettings(senderNameMigrated: true)
+        XCTAssertEqual(MailReplySettings.migratingSenderName(stored: cleared, settingsFileExists: true), cleared)
+    }
+
+    func testConfiguredNameIsNeverOverwritten() {
+        let stored = MailReplySettings(senderFirstName: "Anna", senderFullName: "Anna Muster")
+        let migrated = MailReplySettings.migratingSenderName(stored: stored, settingsFileExists: true)
+        XCTAssertEqual(migrated.senderFirstName, "Anna")
+        XCTAssertEqual(migrated.senderFullName, "Anna Muster")
+    }
+
     // MARK: - Shortcut migration
 
     private let optionMask = KeyboardShortcut.optionMask

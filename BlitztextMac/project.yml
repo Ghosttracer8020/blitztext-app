@@ -12,6 +12,14 @@ settings:
     MACOSX_DEPLOYMENT_TARGET: "14.0"
     MARKETING_VERSION: "1.5"
     CURRENT_PROJECT_VERSION: "15"
+    # Update hub base URL: the ONE place for app (Info.plist SUFeedURL) and
+    # scripts/release.sh, which reads this line. Port 8452 is a placeholder
+    # until the hub container is deployed.
+    ULTRADIC_HUB_URL: "https://ugreen-nas.tail076274.ts.net:8452"
+    # Sparkle EdDSA public key. PLACEHOLDER: replace with the output of
+    # `generate_keys --account ultradic` (see scripts/release.sh header). While
+    # the placeholder is set, the in-app updater stays off and says so.
+    SPARKLE_PUBLIC_KEY: "W1t1gvviknLdionBqmRNOw0Xi5hKTxT+LjGJG0OnxGI="
   configs:
     # Debug builds the active arch only. Forcing universal here made a plain
     # `xcodebuild test` fail: the WhisperKit SPM dependency builds arm64-only
@@ -27,6 +35,9 @@ packages:
   ArgmaxOSS:
     url: https://github.com/argmaxinc/argmax-oss-swift.git
     exactVersion: 0.18.0
+  Sparkle:
+    url: https://github.com/sparkle-project/Sparkle
+    from: "2.10.0"
 
 targets:
   BlitztextMac:
@@ -45,8 +56,13 @@ targets:
           - BlitztextMac.entitlements
     settings:
       base:
+        # The product is branded "UltraDic" (fork of Blitztext), but the bundle
+        # identifier stays app.blitztext.mac: changing it would orphan the
+        # keychain items, UserDefaults and macOS privacy grants (microphone,
+        # accessibility, automation) of existing installs. Xcode target and
+        # module names stay "BlitztextMac" to avoid mechanical churn.
         PRODUCT_BUNDLE_IDENTIFIER: app.blitztext.mac
-        PRODUCT_NAME: Blitztext
+        PRODUCT_NAME: UltraDic
         INFOPLIST_FILE: Resources/Info.plist
         INFOPLIST_KEY_CFBundleShortVersionString: $(MARKETING_VERSION)
         INFOPLIST_KEY_CFBundleVersion: $(CURRENT_PROJECT_VERSION)
@@ -57,6 +73,7 @@ targets:
     dependencies:
       - package: ArgmaxOSS
         product: WhisperKit
+      - package: Sparkle
     entitlements:
       path: Resources/BlitztextMac.entitlements
       properties:

@@ -2,9 +2,10 @@ import AppKit
 import ApplicationServices
 import os
 
+// Legacy subsystem id: UltraDic keeps the original bundle identifier.
 private let mailContextLogger = Logger(subsystem: "app.blitztext.mac", category: "MailContext")
 
-/// The mail Blitztext Mail answers, as read from Apple Mail.
+/// The mail UltraDic Mail answers, as read from Apple Mail.
 struct MailContext: Equatable {
     var subject: String
     var sender: String
@@ -50,9 +51,9 @@ enum MailContextError: LocalizedError, Equatable {
     var errorDescription: String? {
         switch self {
         case .notMail:
-            return "Blitztext Mail funktioniert nur in Apple Mail."
+            return "UltraDic Mail funktioniert nur in Apple Mail."
         case .automationDenied:
-            return "Blitztext darf Mail nicht steuern. Bitte unter Systemeinstellungen \u{2192} Datenschutz & Sicherheit \u{2192} Automation freigeben."
+            return "UltraDic darf Mail nicht steuern. Bitte unter Systemeinstellungen \u{2192} Datenschutz & Sicherheit \u{2192} Automation freigeben."
         case .noSelection:
             return "In Mail ist keine Nachricht markiert. Markiere die Mail, auf die du antwortest, im Postfach."
         case .noQuotedOriginal:

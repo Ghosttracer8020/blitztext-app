@@ -1,6 +1,7 @@
 import Foundation
 import OSLog
 
+// Legacy subsystem id: UltraDic keeps the original bundle identifier.
 private let liveLogger = Logger(subsystem: "app.blitztext.mac", category: "LiveTranscription")
 
 /// One live transcription session = one WebSocket to the OpenAI Realtime API

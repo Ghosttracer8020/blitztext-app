@@ -1,8 +1,8 @@
 # Privacy Notes
 
-Blitztext macOS Preview does not include a hosted backend.
+UltraDic macOS Preview does not include a hosted backend.
 
-When you use the online workflows, your Mac sends data directly to OpenAI (and, for Blitztext Mail, to Anthropic, see below):
+When you use the online workflows, your Mac sends data directly to OpenAI (and, for UltraDic Mail, to Anthropic, see below):
 
 - audio for transcription: streamed live to the OpenAI Realtime API while you record (one WebSocket connection per dictation, closed afterwards). The recording is also written to a temporary file; if the live path fails, that file is uploaded to the OpenAI transcription endpoint instead
 - transcribed or typed text for rewriting
@@ -12,14 +12,14 @@ When **Sicherer Lokaler Modus** is enabled and a WhisperKit/CoreML model is inst
 
 You are responsible for your OpenAI account, API usage, costs, and data handling.
 
-## Blitztext Mail And Anthropic
+## UltraDic Mail And Anthropic
 
-Blitztext Mail sends data to a second provider. When you use it, your Mac reads the mail selected in Apple Mail and sends it directly to the Anthropic API together with your dictated points:
+UltraDic Mail sends data to a second provider. When you use it, your Mac reads the mail selected in Apple Mail and sends it directly to the Anthropic API together with your dictated points:
 
 - the full selected message: subject, sender, date, recipient addresses (To/Cc), and the complete text including the quoted thread history, truncated to roughly 40,000 characters
 - the transcript of your dictation (the audio itself still goes to OpenAI for transcription, as in the other workflows)
 
-This includes personal data of third parties, such as names, addresses, and whatever else the thread contains. Only use this workflow if you are allowed to pass the content of the mails you answer to Anthropic. Nothing is sent to Anthropic unless you start Blitztext Mail. Blitztext never sends or saves mail; it only pastes the reply text at the cursor of your reply window.
+This includes personal data of third parties, such as names, addresses, and whatever else the thread contains. Only use this workflow if you are allowed to pass the content of the mails you answer to Anthropic. Nothing is sent to Anthropic unless you start UltraDic Mail. UltraDic never sends or saves mail; it only pastes the reply text at the cursor of your reply window.
 
 Your Anthropic API key is stored in the macOS Keychain like the OpenAI key. You are responsible for your Anthropic account, API usage, costs, and data handling. The macOS Automation permission for Mail is required to read the selected message.
 
@@ -40,7 +40,7 @@ Settings such as custom prompts, custom terms, and context are stored in local a
 
 ## Offline Scope
 
-Only transcription can run locally. Any workflow that rewrites, improves, or transforms text still uses OpenAI; Blitztext Mail uses Anthropic for the reply text and is paused in secure local mode. Email paragraph formatting for plain dictation is a local text transformation and does not call any API.
+Only transcription can run locally. Any workflow that rewrites, improves, or transforms text still uses OpenAI; UltraDic Mail uses Anthropic for the reply text and is paused in secure local mode. Email paragraph formatting for plain dictation is a local text transformation and does not call any API.
 
 ## Sensitive Content
 
