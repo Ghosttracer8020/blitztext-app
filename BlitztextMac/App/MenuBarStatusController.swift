@@ -34,9 +34,9 @@ final class MenuBarStatusController {
 
         switch currentStatus {
         case .recording:
-            startAnimation(interval: 0.12)
+            startAnimation(interval: 0.09)
         case .processing:
-            startAnimation(interval: 0.18)
+            startAnimation(interval: 0.12)
         default:
             break
         }
@@ -57,7 +57,7 @@ final class MenuBarStatusController {
     }
 
     private func tick() {
-        animationFrame = (animationFrame + 1) % 4
+        animationFrame = (animationFrame + 1) % MenuBarWave.frameCount
         renderCurrentStatus()
     }
 
@@ -142,19 +142,32 @@ private enum MenuBarStatusIconRenderer {
     }
 
     private static func drawBaseIcon(in bounds: CGRect, status: MenuBarStatus, frame: Int) {
-        let stripeWidths: [CGFloat] = [12, 10, 8, 6]
-        let stripeHeight: CGFloat = 2
-        let stripeSpacing: CGFloat = 1.6
-        let totalHeight = (CGFloat(stripeWidths.count) * stripeHeight) + (CGFloat(stripeWidths.count - 1) * stripeSpacing)
-        let originY = bounds.midY - (totalHeight / 2)
-        let baseAlpha = baseAlphaValues(for: status, frame: frame)
+        // UltraDic's five-bar wave (same proportions as menubar_icon). With a
+        // badge it moves left so the badge does not cover the last bar.
+        let hasBadge: Bool
+        if case .idle = status { hasBadge = false } else { hasBadge = true }
+        let waveWidth: CGFloat = hasBadge ? 8.6 : 13
+        let waveRect = CGRect(
+            x: hasBadge ? bounds.minX + 0.2 : bounds.midX - waveWidth / 2,
+            y: bounds.midY - 6.5,
+            width: waveWidth,
+            height: 13
+        )
+        let heights = MenuBarWave.heights(for: status, frame: frame)
+        let alphas = MenuBarWave.alphas(for: status, frame: frame)
+        let barCount = CGFloat(MenuBarWave.restHeights.count)
+        let barWidth = waveRect.width / (barCount * 2 - 1)
 
-        for (index, width) in stripeWidths.enumerated() {
-            let x = bounds.midX - (width / 2)
-            let y = originY + CGFloat(index) * (stripeHeight + stripeSpacing)
-            let rect = CGRect(x: x, y: y, width: width, height: stripeHeight)
-            let path = NSBezierPath(roundedRect: rect, xRadius: 1, yRadius: 1)
-            NSColor.black.withAlphaComponent(baseAlpha[index]).setFill()
+        for index in MenuBarWave.restHeights.indices {
+            let height = max(barWidth, waveRect.height * heights[index])
+            let rect = CGRect(
+                x: waveRect.minX + CGFloat(index) * barWidth * 2,
+                y: waveRect.midY - height / 2,
+                width: barWidth,
+                height: height
+            )
+            let path = NSBezierPath(roundedRect: rect, xRadius: barWidth / 2, yRadius: barWidth / 2)
+            NSColor.black.withAlphaComponent(alphas[index]).setFill()
             path.fill()
         }
     }
@@ -275,127 +288,6 @@ private enum MenuBarStatusIconRenderer {
         dotPath.fill()
     }
 
-    private static func baseAlphaValues(for status: MenuBarStatus, frame: Int) -> [CGFloat] {
-        switch status {
-        case .idle:
-            return [1.0, 0.82, 0.64, 0.46]
-        case .recording(let type):
-            return recordingAlphaValues(for: type, frame: frame)
-        case .processing(let type):
-            return processingAlphaValues(for: type, frame: frame)
-        case .success:
-            return [1.0, 0.9, 0.78, 0.62]
-        case .error:
-            return [1.0, 0.7, 0.52, 0.36]
-        }
-    }
-
-    private static func recordingAlphaValues(for type: WorkflowType, frame: Int) -> [CGFloat] {
-        switch type {
-        case .transcription, .localTranscription:
-            let patterns: [[CGFloat]] = [
-                [1.0, 0.42, 0.28, 0.18],
-                [0.82, 1.0, 0.4, 0.24],
-                [0.58, 0.86, 1.0, 0.36],
-                [0.4, 0.62, 0.88, 1.0],
-            ]
-            return patterns[frame % patterns.count]
-        case .textImprover:
-            let patterns: [[CGFloat]] = [
-                [1.0, 0.88, 0.52, 0.3],
-                [0.86, 1.0, 0.84, 0.44],
-                [0.64, 0.9, 1.0, 0.68],
-                [0.48, 0.68, 0.9, 1.0],
-            ]
-            return patterns[frame % patterns.count]
-        case .dampfAblassen:
-            let patterns: [[CGFloat]] = [
-                [1.0, 0.44, 0.78, 1.0],
-                [0.86, 0.34, 0.96, 0.9],
-                [0.72, 0.3, 1.0, 0.78],
-                [0.94, 0.4, 0.74, 1.0],
-            ]
-            return patterns[frame % patterns.count]
-        case .emojiText:
-            let patterns: [[CGFloat]] = [
-                [1.0, 0.7, 0.46, 0.28],
-                [0.78, 1.0, 0.72, 0.42],
-                [0.52, 0.82, 1.0, 0.66],
-                [0.36, 0.58, 0.84, 1.0],
-            ]
-            return patterns[frame % patterns.count]
-        case .promptText:
-            let patterns: [[CGFloat]] = [
-                [1.0, 0.56, 0.34, 0.2],
-                [0.7, 1.0, 0.6, 0.32],
-                [0.44, 0.74, 1.0, 0.56],
-                [0.3, 0.5, 0.78, 1.0],
-            ]
-            return patterns[frame % patterns.count]
-        case .mailReply:
-            let patterns: [[CGFloat]] = [
-                [0.9, 1.0, 0.5, 0.3],
-                [0.6, 0.9, 1.0, 0.44],
-                [0.36, 0.64, 0.9, 1.0],
-                [0.5, 0.34, 0.7, 0.96],
-            ]
-            return patterns[frame % patterns.count]
-        }
-    }
-
-    private static func processingAlphaValues(for type: WorkflowType, frame: Int) -> [CGFloat] {
-        switch type {
-        case .transcription, .localTranscription:
-            let patterns: [[CGFloat]] = [
-                [1.0, 0.84, 0.68, 0.52],
-                [0.92, 0.8, 0.64, 0.5],
-                [0.84, 0.74, 0.6, 0.48],
-                [0.92, 0.8, 0.64, 0.5],
-            ]
-            return patterns[frame % patterns.count]
-        case .textImprover:
-            let patterns: [[CGFloat]] = [
-                [1.0, 0.76, 0.52, 0.34],
-                [0.86, 1.0, 0.74, 0.48],
-                [0.7, 0.88, 1.0, 0.72],
-                [0.56, 0.74, 0.9, 1.0],
-            ]
-            return patterns[frame % patterns.count]
-        case .dampfAblassen:
-            let patterns: [[CGFloat]] = [
-                [0.9, 0.5, 0.72, 1.0],
-                [0.78, 0.44, 0.9, 1.0],
-                [0.66, 0.38, 1.0, 0.88],
-                [0.84, 0.48, 0.78, 1.0],
-            ]
-            return patterns[frame % patterns.count]
-        case .emojiText:
-            let patterns: [[CGFloat]] = [
-                [1.0, 0.8, 0.58, 0.4],
-                [0.88, 1.0, 0.78, 0.54],
-                [0.74, 0.9, 1.0, 0.7],
-                [0.6, 0.76, 0.92, 1.0],
-            ]
-            return patterns[frame % patterns.count]
-        case .promptText:
-            let patterns: [[CGFloat]] = [
-                [1.0, 0.62, 0.4, 0.26],
-                [0.8, 1.0, 0.66, 0.38],
-                [0.6, 0.82, 1.0, 0.6],
-                [0.42, 0.6, 0.86, 1.0],
-            ]
-            return patterns[frame % patterns.count]
-        case .mailReply:
-            let patterns: [[CGFloat]] = [
-                [0.96, 1.0, 0.6, 0.36],
-                [0.7, 0.94, 1.0, 0.5],
-                [0.46, 0.7, 0.94, 1.0],
-                [0.6, 0.44, 0.8, 1.0],
-            ]
-            return patterns[frame % patterns.count]
-        }
-    }
-
     private static func badgeSymbol(for type: WorkflowType) -> String {
         switch type {
         case .transcription:
@@ -420,5 +312,41 @@ private enum MenuBarStatusIconRenderer {
         image.isTemplate = true
         image.size = NSSize(width: 18, height: 18)
         return image
+    }
+}
+
+/// Bar heights and opacities of the animated menu bar wave.
+enum MenuBarWave {
+    static let frameCount = 8
+    /// Resting wave, left to right (fraction of the wave height).
+    static let restHeights: [CGFloat] = [0.30, 0.55, 0.85, 0.55, 0.30]
+
+    static func heights(for status: MenuBarStatus, frame: Int) -> [CGFloat] {
+        guard case .recording = status else { return restHeights }
+        // Speaking: each bar bounces like a level meter, out of phase with
+        // its neighbours, so the wave visibly "talks".
+        let step = Double(frame % frameCount) / Double(frameCount) * 2 * .pi
+        return restHeights.indices.map { index in
+            let wobble = abs(sin(step + Double(index) * 1.3))
+            let peak = min(0.95, restHeights[index] + 0.25)
+            return 0.25 + CGFloat(wobble) * (peak - 0.25)
+        }
+    }
+
+    static func alphas(for status: MenuBarStatus, frame: Int) -> [CGFloat] {
+        switch status {
+        case .processing:
+            // Working: a highlight sweeps left to right across the resting wave.
+            let position = Double(frame % frameCount) / Double(frameCount - 1)
+                * Double(restHeights.count + 1) - 1
+            return restHeights.indices.map { index in
+                let distance = abs(Double(index) - position)
+                return CGFloat(0.35 + 0.65 * max(0, 1 - distance / 1.5))
+            }
+        case .error:
+            return [1, 0.75, 0.55, 0.75, 1]
+        default:
+            return Array(repeating: 1, count: restHeights.count)
+        }
     }
 }
