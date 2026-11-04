@@ -1,6 +1,10 @@
 import Foundation
 import AppKit
 import Observation
+import OSLog
+
+// Legacy subsystem id: UltraDic keeps the original bundle identifier.
+private let textImprovementLogger = Logger(subsystem: "app.blitztext.mac", category: "TextImprovement")
 
 @Observable
 @MainActor
@@ -110,6 +114,10 @@ final class TextImprovementWorkflow: Workflow {
                 )
 
                 let cleanedImproved = TranscriptionQualityService.cleanedTranscript(improved)
+                // Lengths only, never text.
+                textImprovementLogger.info(
+                    "Improve: \(cleanedRawText.count, privacy: .public) chars in, \(cleanedImproved.count, privacy: .public) chars out, custom prompt=\(!self.settings.systemPrompt.isEmpty, privacy: .public)"
+                )
                 phase = .done(cleanedImproved)
                 onOutput?(cleanedImproved)
             } catch {

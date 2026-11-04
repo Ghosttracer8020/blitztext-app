@@ -60,6 +60,12 @@ enum TranscriptionKeywords {
 
 /// Everything the live session needs from the app besides audio and the key.
 struct LiveTranscriptionRequest: Equatable, Sendable {
+    /// Live streaming is off: on real microphones (quiet 44.1 kHz input,
+    /// around -40 dBFS) the live model returned empty or one-word transcripts
+    /// while the batch request on the recorded file was complete. Every
+    /// remote dictation uses the recorded file, as before the live path.
+    static let isEnabled = false
+
     var languages: [String]
     var keywords: [String]
     var prompt: String?
@@ -239,6 +245,12 @@ enum LiveFallbackDecision: Equatable {
     /// lost audio (late engine start, device switch) although the file is complete.
     static let minimumAudioCoverage = 0.85
 
+    /// A live transcript this sparse for a recording this long means the
+    /// stream audio was unusable (observed: 3 chars for 34 s of speech) while
+    /// the recorded file is fine. Normal speech yields well over 10 chars/s.
+    static let sparseTranscriptMinimumDuration: TimeInterval = 5
+    static let minimumCharsPerSecond = 1.5
+
     /// `liveAudioSeconds` is the audio the session actually sent; nil skips the coverage check.
     static func decide(
         _ result: Result<String, LiveFailure>,
@@ -260,6 +272,10 @@ enum LiveFallbackDecision: Equatable {
                recordingDuration >= TranscriptionQualityService.minimumRecordingDuration,
                live < recordingDuration * minimumAudioCoverage {
                 return .fallbackToBatch(reason: "audio-gap")
+            }
+            if recordingDuration >= sparseTranscriptMinimumDuration,
+               Double(cleaned.count) < recordingDuration * minimumCharsPerSecond {
+                return .fallbackToBatch(reason: "sparse-transcript")
             }
             return .useLive(cleaned)
         case .failure(.cancelled):

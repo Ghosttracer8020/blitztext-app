@@ -45,6 +45,8 @@ final class LiveTranscriptionSession: @unchecked Sendable {
     private var connectTimer: DispatchWorkItem?
     private var connectDeadline: Date?
     private var idleTimer: DispatchWorkItem?
+    /// Loudness profile of the sent audio (numbers only) for diagnosing silent streams.
+    private var levelProfile = PCMLevelProfile()
 
     init(request: LiveTranscriptionRequest) {
         self.request = request
@@ -157,6 +159,7 @@ final class LiveTranscriptionSession: @unchecked Sendable {
     }
 
     private func enqueue(_ chunk: Data) {
+        levelProfile.add(chunk)
         if ready {
             sentBytes += chunk.count
             send(LiveEvents.append(chunk))
@@ -271,8 +274,9 @@ final class LiveTranscriptionSession: @unchecked Sendable {
             .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
             .filter { !$0.isEmpty }
             .joined(separator: " ")
+        liveLogger.info("Live audio level per 5 s (dBFS): \(self.levelProfile.summary, privacy: .public)")
         if let sent = commitSentAt {
-            liveLogger.info("Live transcript completed \(Int(Date().timeIntervalSince(sent) * 1000)) ms after commit")
+            liveLogger.info("Live transcript completed \(Int(Date().timeIntervalSince(sent) * 1000)) ms after commit, items committed=\(self.committedItems.count, privacy: .public) completed=\(self.completedItems.count, privacy: .public)")
         }
         finish(.success(text))
     }
@@ -295,5 +299,38 @@ final class LiveTranscriptionSession: @unchecked Sendable {
 
     private func millisecondsSinceStart() -> Int {
         Int(Date().timeIntervalSince(startedAt) * 1000)
+    }
+}
+
+/// RMS level of PCM16 / 24 kHz mono audio in 5 s windows, as dBFS.
+struct PCMLevelProfile {
+    static let windowBytes = LiveEvents.sampleRate * 2 * 5
+
+    private var windows: [Double] = []
+    private var sumSquares = 0.0
+    private var samples = 0
+
+    mutating func add(_ chunk: Data) {
+        chunk.withUnsafeBytes { raw in
+            for sample in raw.bindMemory(to: Int16.self) {
+                let value = Double(Int16(littleEndian: sample)) / 32768
+                sumSquares += value * value
+                samples += 1
+                if samples * 2 >= Self.windowBytes { closeWindow() }
+            }
+        }
+    }
+
+    private mutating func closeWindow() {
+        guard samples > 0 else { return }
+        windows.append(10 * log10(max(sumSquares / Double(samples), 1e-10)))
+        sumSquares = 0
+        samples = 0
+    }
+
+    var summary: String {
+        var copy = self
+        copy.closeWindow()
+        return copy.windows.map { String(format: "%.0f", $0) }.joined(separator: " ")
     }
 }

@@ -60,6 +60,12 @@ enum TranscriptionService {
         if let live {
             let started = Date()
             let outcome = await live.result()
+            // Lengths only, never text: shows where a long dictation loses words.
+            if case .success(let liveText) = outcome {
+                transcriptionServiceLogger.info(
+                    "Live result: \(liveText.count, privacy: .public) chars, audio sent \(String(format: "%.1f", live.sentAudioSeconds), privacy: .public) s of \(String(format: "%.1f", recordingDuration), privacy: .public) s recorded"
+                )
+            }
             switch LiveFallbackDecision.decide(
                 outcome,
                 recordingDuration: recordingDuration,

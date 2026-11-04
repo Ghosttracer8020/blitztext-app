@@ -212,9 +212,23 @@ final class LiveTranscriptionTests: XCTestCase {
             .fallbackToBatch(reason: "audio-gap")
         )
         XCTAssertEqual(
-            LiveFallbackDecision.decide(.success("Hallo"), recordingDuration: 10, liveAudioSeconds: 9.5),
+            LiveFallbackDecision.decide(.success("Hallo"), recordingDuration: 4, liveAudioSeconds: 3.8),
             .useLive("Hallo")
         )
+    }
+
+    func testFallsBackWhenLiveTranscriptIsTooSparseForTheRecording() {
+        XCTAssertEqual(
+            LiveFallbackDecision.decide(.success("hat"), recordingDuration: 34.2, liveAudioSeconds: 33.6),
+            .fallbackToBatch(reason: "sparse-transcript")
+        )
+        let sentence = String(repeating: "Das ist ein normaler Satz. ", count: 6)
+        XCTAssertEqual(
+            LiveFallbackDecision.decide(.success(sentence), recordingDuration: 20, liveAudioSeconds: 20),
+            .useLive(sentence.trimmingCharacters(in: .whitespacesAndNewlines))
+        )
+        // Short recordings keep the live result even when it is brief.
+        XCTAssertEqual(LiveFallbackDecision.decide(.success("Ja"), recordingDuration: 3), .useLive("Ja"))
     }
 
     func testEveryFailureFallsBackExceptCancel() {

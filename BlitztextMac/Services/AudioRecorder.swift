@@ -69,7 +69,7 @@ final class AudioRecorder: NSObject, AVAudioRecorderDelegate {
             }
             audioRecorder = recorder
             isRecording = true
-            if let live {
+            if let live, LiveTranscriptionRequest.isEnabled {
                 let session = LiveTranscriptionSession(request: live)
                 session.start()
                 liveSession = session
